@@ -1,0 +1,31 @@
+name: Render paper
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Render PDF
+        run: quarto render paper.qmd --to typst
+
+      - name: Publish to "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest _output/paper.pdf \
+            --title "Latest render" \
+            --notes "Rendered from ${GITHUB_SHA::7}" \
+            --target "$GITHUB_SHA" \
+            --prerelease

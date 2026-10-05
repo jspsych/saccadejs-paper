@@ -1,0 +1,20 @@
+---
+title: "saccade.js"
+author:
+  - name: Joshua R. de Leeuw
+    affiliation: Vassar College
+abstract: |
+  Abstract goes here.
+format: typst
+bibliography: references.bib
+---
+
+# Introduction
+
+Text goes here [@deleeuw2015].
+
+# Methods
+
+# Results
+
+# Discussion
