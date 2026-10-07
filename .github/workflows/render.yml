@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   render:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
@@ -30,7 +30,7 @@ jobs:
       # The validation dataset (Zenodo record 23213276, ~400 MB). The key carries the archive's
       # MD5, so a new upload (with a new MD5 in R/data.R) misses the cache and downloads again.
       - name: Restore dataset from cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: data/saccadejs-validation
           key: zenodo-23213276-6ecdcb53c34748d6ec53ecd27a2e2f3d
