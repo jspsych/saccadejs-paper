@@ -1,6 +1,13 @@
 project:
   type: default
   output-dir: _output
+  render:
+    - paper.qmd
+
+execute:
+  echo: false
+  warning: false
+  message: false
 
 format:
   typst:
