@@ -16,10 +16,33 @@ jobs:
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::rmarkdown
+            any::knitr
+            any::readr
+
+      # The validation dataset (Zenodo record 23213276, ~400 MB). The key carries the archive's
+      # MD5, so a new upload (with a new MD5 in R/data.R) misses the cache and downloads again.
+      - name: Restore dataset from cache
+        uses: actions/cache@v4
+        with:
+          path: data/saccadejs-validation
+          key: zenodo-23213276-6ecdcb53c34748d6ec53ecd27a2e2f3d
+
       - name: Render PDF
-        run: quarto render paper.qmd --to typst
+        env:
+          # Needed only while the Zenodo record is an unpublished draft.
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+        run: quarto render
 
       - name: Publish to "latest" release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

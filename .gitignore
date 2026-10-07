@@ -4,3 +4,4 @@ _output/
 .DS_Store
 
 **/*.quarto_ipynb
+data/
