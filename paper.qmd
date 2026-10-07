@@ -10,6 +10,17 @@ author:
 format: typst
 ---
 
+```{r}
+#| label: setup
+library(readr)
+
+# The validation-study dataset: a local copy if there is one, otherwise downloaded from Zenodo.
+source("R/data.R")
+data_dir <- validation_data_dir()
+participants <- read_csv(file.path(data_dir, "participants.csv"), show_col_types = FALSE)
+n_sessions <- nrow(participants)
+```
+
 # Introduction
 
 **TODO:** This is copy-and-pasted from the grant submission. Need to trim the fat.
@@ -135,13 +146,38 @@ jsPsych ecosystem options.
 
 # Validation Study
 
-Ran a Prolific study. Three blocks of 43 targets. Fixation point changed color for 1/3rd. Press spacebar when that happens. Measured a bunch of stuff to see what is possible with an online participant pool in Sep. 2026.
-
-Wanted to compare our technique and WebGazer directly, so we modified saccadeJS to record the information needed for webgazer's model and ours. Luckily both use the same initial steps, so this amounted to generating a couple extra eye crops and saving 120d vector for webgazer. Not a huge load on the system. 
-
 We do the comparison with WebGazer not as some kind of benchmark to beat, but rather because WebGazer is by far the most popular approach that is found in the literature and there is a lot of published data about what is and isn't possible with it. By making a direct comparison we hope to connect with this literature and give researchers who are familiar with WebGazer a sense of the degree of improvement that SaccadeJS offers.
 
-A bunch of results to share.
+## Participants
+
+`r n_sessions` people from Prolific completed the experiment. We sampled people who had completed at least 20 Prolific studies, had at least a 98% approval rate, and had indicated that they would be willing to use a webcam during an experiment. We excluded any Prolific IDs that participated in any of the prior data collection for developing the model. [Demographic breakdown]. 
+
+## Procedure
+
+The experiment began with a welcome screen that asked participants to find a comfortable position in order to minimize movement during the 10-minute experiment. This was followed by a screen that required users to press the space bar, as a means of identifying any users without a physical keyboard. We then asked participants to identify whether they were using an internal or external webcam (with accompanying illustrations for each). The experiment then requested permission to access the camera.
+
+Once camera permissions were granted, the experiment became fullscreen. We then used the SaccadeJS preview plugin to show participants their webcam image and the eye crop area that is used for tracking. This plugin also identifies whether a face is in the webcam image, and times out after 60 seconds if no face is found. Next, we ran the SaccadeJS performance plugin to record the live frame rate and model run time followed by the SaccadeJS time-sync plugin to estimate the temporal delay in the camera recording. Finally, we measured the time required to run the encoder model on the machine and used this to determine whether the model could run on the machine's GPU or needed to run on a pool of CPU workers. From the participant's perspective, these checks took about three seconds while we displayed a "getting ready" message.
+
+With the checks complete, participants viewed the task instructions: "A target will appear on the screen. Look at its center and keep your eyes there. When it jumps to a new place, follow it with your eyes. Now and then, the small dot in the center will turn orange. When it does, press space. Please keep your head as still as you can, and move only your eyes." This screen included examples of the target with and without the orange dot. Participant then completed five practice fixations, in which three of the targets required a response. If the paricipant missed any of the responses, the trials repeated after a reminder about the instructions. Participants were screened out if they failed three rounds of the practice.
+
+Participants completed three blocks, each containing 43 fixation points. Of the 43, 13 were randomly selected as targets in each block, requiring participants to press the space bar in response to the color change. The 43 points were selected by combining two grids and a small selection of random locations. 25 points came from a 5 x 5 grid, spaced at 5%, 27.5%, 50%, 72.5%, and 90% of the screen width and height provided calibration points (see analysis, below). A 3x3 grid, spaced at 15%/50%/85% provided nine more. The remaining 9 points were randomly placed, with the constraints that one point must appear in each cell of a 3x3 division of the screen, no point could be within 5% of the width/height of the edge of the screen, and no point could be within 4% of the width/height of the screen of any other point. [figure?] Each point appeared for at least 1600ms. For target points requiring a response, the color change occurred 900-1300ms after it appeared, and stayed visible for 1000ms after that point. Pressing the spacebar turned the outer part of the fixation target green. In between each block, participants were required to wait at least 10 seconds, and when ready could progress to the next block by pressing the space bar. 
+
+After all three blocks were complete, the browser exited fullscreen mode and participants completed a short set of questions. These asked participants whether they wore glasses or contacts during the session, to describe any technical problems, and to describe anything that may have interrupted looking at the targets during the session. Finally, data were uploaded and the participant was redirected to Prolific.
+
+## Data Recording
+
+Our goal with the study was to run the WebGazer and SaccadeJS algorithms on identical images, so we used a modified version of the SaccadeJS library to record the information needed. Both algorithms start with the same facial landmark identification. From there, WebGazer generates two 10x6px cropped grayscale images of the eyes and SaccadeJS generates a 144x36px cropped grayscale image spanning the eyes and bridge of the nose. For the WebGazer crops, we saved the pixel data directly. For SaccadeJS, we attempted to run the encoding model live on the participant's computer. For participants whose device supported the WebGPU framework and was fast enough to encode a frame in less than 85% of the duration of one camera frame, we ran the model in real-time. For other devices, where either the GPU was too slow to keep up with the frame rate or where WebGPU was not available, we queued each image in a pool and processed them using up to three spare CPU threads. From pilot testing, we found that machines with 4GB of RAM or less couldn't handle more than one background CPU thread, so we limited the processing to one thread on these machines. Any images that were not processed by the pool of CPU workers by the end of the experiment were uploaded as raw image crops. We processed these after the fact and then removed the raw images from the dataset to protect privacy.
+
+In addition to the image features needed for WebGazer and SaccadeJS, we also collected a variety of metrics to help us identify potential predictors of model performance. From the facial landmark model, we recorded the 3D coordinates of 9 locations (tip of the nose, midline of the upper forehead, lowest point on the chin, the widest points on the left and right side of the face, and the inner and outer corners of both eyes), head yaw, pitch, and roll, and the aspect ratio of the box surrounding the open part of the eye (used, in part, for blink detection). For each image, we also recorded sharpness, brightness, and sensor noise. Finally, we measured several features of the participant's machine. We recorded their web browser type and version number, operating system, whether the browser claims to be a mobile browser, the refresh rate of the display, the screen size in pixels, the WebGL version, CPU core count, device memory, whether WebGPU was available and if so what GPU adapter was used, camera resolution, and measured frame rate.
+
+## Results
+
+- Figures 12 & 13 - comparison with webgazer on accuracy. Headline accuracy numbers.
+- Latency estimates.
+- Translation into practical considerations. squares. layouts. where error is stronger.
+- Calibration effects. 
+- Predictors of bad performance. Observer characteristics.
+- Runtime considerations.
 
 # Conclusion
 
