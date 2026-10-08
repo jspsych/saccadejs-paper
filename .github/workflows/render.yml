@@ -26,6 +26,16 @@ jobs:
             any::rmarkdown
             any::knitr
             any::readr
+            any::jsonlite
+            any::ggplot2
+            any::dplyr
+            any::tidyr
+            any::purrr
+            any::tibble
+            any::scales
+            any::patchwork
+            any::forcats
+            any::magick
 
       # The validation dataset (Zenodo record 23213276, ~400 MB). The key carries the archive's
       # MD5, so a new upload (with a new MD5 in R/data.R) misses the cache and downloads again.
