@@ -239,7 +239,17 @@ In addition to the image features needed for WebGazer and SaccadeJS, we also col
 
 ## Results
 
-Throughout the entire analysis, we measure spatial distances in percentage of the diagonal of the screen. For example, a distance of 50% would be equal to the distance from a corner of the screen to the middle. For remote studies, where controlling viewing distance is challenging at best, we think this gives readers a clear sense of the magnitude of the errors given typical viewing configurations for the population. [give maybe a rough conversion factor to degrees of visual angle here]
+```{r}
+#| label: scale
+# A rough scale for the reader: 1% of the diagonal of a typical laptop screen, in millimetres and
+# in degrees of visual angle at a typical viewing distance.
+LAPTOP_DIAGONAL_IN <- 14
+VIEWING_DISTANCE_MM <- 600
+one_percent_mm <- 0.01 * LAPTOP_DIAGONAL_IN * 25.4
+one_percent_deg <- 2 * atan(one_percent_mm / 2 / VIEWING_DISTANCE_MM) * 180 / pi
+```
+
+Throughout the entire analysis, we measure spatial distances in percentage of the diagonal of the screen. For example, a distance of 50% would be equal to the distance from a corner of the screen to the middle. For remote studies, where controlling viewing distance is challenging at best, we think this gives readers a clear sense of the magnitude of the errors given typical viewing configurations for the population. As a rough guide, on a `r LAPTOP_DIAGONAL_IN`-inch laptop screen viewed from `r VIEWING_DISTANCE_MM / 10` cm, 1% of the diagonal is about `r f1(one_percent_mm)` mm, or `r f2(one_percent_deg)`° of visual angle.
 
 ### How spatially accurrate and precise is SaccadeJS?
 
@@ -508,8 +518,6 @@ wrap_elements(full = prec_top) / wrap_elements(full = prec_cloud + labs(tag = "C
   plot_layout(heights = c(1, 0.72))
 ```
 
-### What could a study tell apart?
-
 ```{r}
 #| label: squares
 # Everything is in percent of the screen diagonal. A count of squares is a ratio of lengths, so
@@ -552,22 +560,9 @@ aspect_share <- function(ratio) {
 }
 ```
 
-**Notes: squares, method**
+To give a sense of the methodological impact of the improved accuracy and precision of SaccadeJS relative to WebGazer, we asked how many equal-sized square areas of interest could be used in an experiment such that 90% of the measured predictions fall inside the correct AOI if the participant is looking at the center of the AOI. We calculated this by finding the smallest square that held 90% of the samples around all the fixated targets in the experiment. We then determined the maximum number of rows and columns that could be used with this square size, assuming a 16:9 aspect ratio screen. This was the most common aspect ratio in our experiment (`r f0(100 * aspect_share(16 / 9))`% of participants' screens). 
 
-- Question: how many equal regions could a study put on screen and still know which one the participant is looking at?
-- Squares: the smallest equal squares that hold 90% of a participant's samples inside the square of the target being looked at.
-  - Side = 2 × the 90th percentile of max(|dx|, |dy|).
-  - Count = floor(screen width / side) × floor(screen height / side), at least 1.
-- Same frames and single calibration as accuracy.
-- Needs only the screen's shape (all lengths in % of the diagonal), not its physical size. Each participant is counted on their own screen.
-- Screens: `r f0(100 * aspect_share(16 / 9))`% were 16:9, `r f0(100 * aspect_share(16 / 10))`% 16:10.
-
-**Notes: squares, results**
-
-- Median participant: SaccadeJS `r sq_median("SaccadeJS")` squares; WebGazer `r sq_median("WebGazer")`.
-- @fig-squares: real participants at the 25th, 50th and 75th percentiles of square count, ranked separately per tracker (so a row can show different people), with their own samples drawn around each square's center.
-  - Drawn on a 16:9 reference screen. That assumes error scales with the screen (people sit proportionally farther from bigger screens).
-- The cook-off report also has the full distribution of counts, rows and columns, averaging over a look, and stricter or looser criteria (75/90/95%). Not included here.
+@fig-squares shows the computed layouts for participants at the 25th, 50th, and 75th percentile of error. SaccadeJS can support much smaller AOIs than WebGazer across the distribution of model performance. The WebGazer results are largely consistent with previous work characterizing WebGazer's performance as being sufficient for studies with screen halves or quadrants, but not smaller AOIs [@semmelmann2018; @yang2021; @slim2023; @james2025]. 
 
 ```{r}
 #| label: fig-squares
@@ -622,64 +617,7 @@ ggplot() +
         panel.spacing.x = unit(1.2, "lines"), panel.spacing.y = unit(0.4, "lines"))
 ```
 
-```{r}
-#| label: layouts
-# Layouts of equal regions that fill the screen, with each picture at its region's center. Each
-# sample's error is applied at every region's center in turn. Gaze past the edge of the screen
-# is kept on it, since a look past the left edge is still a look at the leftmost picture.
-LAYOUTS <- tribble(
-  ~layout,          ~nx, ~ny,
-  "2 side by side",   2,   1,
-  "2 stacked",        1,   2,
-  "3 in a row",       3,   1,
-  "4 quadrants",      2,   2,
-  "3 × 3",            3,   3,
-  "4 × 4",            4,   4)
-layout_hits <- function(dx, dy, w, h, nx, ny) {
-  cw <- w / nx; ch <- h / ny
-  expand_grid(i = seq_len(nx), j = seq_len(ny)) |>
-    pmap_dbl(\(i, j) {
-      gx <- pmin(pmax((i - 0.5) * cw + dx, 0), w * (1 - 1e-9))
-      gy <- pmin(pmax((j - 0.5) * ch + dy, 0), h * (1 - 1e-9))
-      mean(floor(gx / cw) == i - 1 & floor(gy / ch) == j - 1)
-    }) |>
-    mean()
-}
-layout_scores <- fwd_frames |>
-  left_join(screens, by = "session") |>
-  cross_join(LAYOUTS) |>
-  summarise(hits = 100 * layout_hits(dx, dy, w[1], h[1], nx[1], ny[1]),
-            .by = c(session, tracker, layout))
-# Per layout and tracker: the median participant's hits, and the share of participants with at
-# least 90% of their samples in the right region.
-layout_summary <- layout_scores |>
-  summarise(median = median(hits), at90 = 100 * mean(hits >= 90), .by = c(layout, tracker))
-layout_at90 <- function(l, tr) f0(value_of(layout_summary, at90, layout == l, tracker == tr))
-```
-
-**Notes: layouts**
-
-- Six layouts of equal regions filling the screen: 2 side by side, 2 stacked, 3 in a row, 4 quadrants, 3 × 3, 4 × 4.
-- Each sample's error is applied at every region's center in turn. The share landing in the right region is computed per participant.
-- Gaze past the screen edge is clamped to the edge (a look past the left edge still counts for the leftmost picture).
-- Share of participants with ≥ 90% of samples in the right region, SaccadeJS vs WebGazer:
-  - 2 side by side: `r layout_at90("2 side by side", "SaccadeJS")`% vs `r layout_at90("2 side by side", "WebGazer")`%
-  - 4 quadrants: `r layout_at90("4 quadrants", "SaccadeJS")`% vs `r layout_at90("4 quadrants", "WebGazer")`%
-  - 3 × 3: `r layout_at90("3 × 3", "SaccadeJS")`% vs `r layout_at90("3 × 3", "WebGazer")`%
-- @tbl-layouts has every layout: the median participant's share, and the share of participants at ≥ 90%.
-
-```{r}
-#| label: tbl-layouts
-#| tbl-cap: "The median participant's share of samples in the right region for each layout, and the share of participants for whom at least 90% of samples landed in the right region."
-layout_summary |>
-  mutate(median = sprintf("%.0f%%", median), at90 = sprintf("%.0f%%", at90)) |>
-  pivot_wider(names_from = tracker, values_from = c(median, at90)) |>
-  arrange(match(layout, LAYOUTS$layout)) |>
-  select(layout, median_SaccadeJS, at90_SaccadeJS, median_WebGazer, at90_WebGazer) |>
-  knitr::kable(align = "lrrrr",
-               col.names = c("layout", "SaccadeJS, median", "SaccadeJS, ≥ 90%",
-                             "WebGazer, median", "WebGazer, ≥ 90%"))
-```
+We also looked at where on the screen errors are larger. We started by dividing each individual frame's error by the median error for that participant. We then grouped frames into a 5x5 grid, and took the median ratio for the participant in each cell. Finally, within each cell, we took the median across the `r n_fwd` participants. As shown in @fig-screen-map, errors are a bit larger at the sides and bottom of the screen. We suspect this is because the eyelid tends to partially close when people look down, which reduces the visibility of the iris.
 
 ```{r}
 #| label: screen-map
@@ -706,17 +644,11 @@ extreme_cell <- function(tr, which) {
 }
 ```
 
-**Notes: where on the screen**
 
-- Target positions split into a 5 × 5 grid. Each frame's error is divided by the participant's own median error over the whole screen; take the median per participant per cell, then the median participant per cell.
-- SaccadeJS: worst `r extreme_cell("SaccadeJS", "worst")`; best `r extreme_cell("SaccadeJS", "best")`.
-- WebGazer: worst `r extreme_cell("WebGazer", "worst")`; best `r extreme_cell("WebGazer", "best")`.
-- Range across cells: SaccadeJS `r f2(min(screen_map$rel[screen_map$tracker == "SaccadeJS"]))`–`r f2(max(screen_map$rel[screen_map$tracker == "SaccadeJS"]))`×; WebGazer `r f2(min(screen_map$rel[screen_map$tracker == "WebGazer"]))`–`r f2(max(screen_map$rel[screen_map$tracker == "WebGazer"]))`×. @fig-screen-map.
-- Uses every station of the two blocks after calibration: the 5 × 5 grid (5–95%), the validation grid and the random points, so every cell has targets.
 
 ```{r}
 #| label: fig-screen-map
-#| fig-cap: "Error by target position, as a multiple of each participant's error over the whole screen (median participant). Green is better than the participant's average, purple worse."
+#| fig-cap: "Error by target position, as a multiple of each participant's error over the whole screen: the median across participants in each cell. Green is better than the participant's average, purple worse."
 #| fig-width: 6.5
 #| fig-height: 2.4
 ggplot(screen_map, aes(cx, cy, fill = rel)) +
