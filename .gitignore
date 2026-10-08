@@ -5,3 +5,6 @@ _output/
 
 **/*.quarto_ipynb
 data/
+
+# knitr cache for the replay chunk
+paper_cache/
