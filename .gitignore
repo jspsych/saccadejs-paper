@@ -8,3 +8,6 @@ data/
 
 # knitr cache for the replay chunk
 paper_cache/
+
+# research notes from code/data exploration
+notes/
