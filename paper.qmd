@@ -66,6 +66,11 @@ value_of <- function(table, column, ...) {
 data_dir <- validation_data_dir()
 participants <- read_csv(file.path(data_dir, "participants.csv"), show_col_types = FALSE)
 n_sessions <- nrow(participants)
+# A session counts only if its participant caught at least 85% of the color changes; otherwise
+# they were not reliably looking at the targets.
+MIN_ATTENTION <- 0.85
+attentive <- participants |> filter(probe_hit_rate >= MIN_ATTENTION) |> pull(session)
+n_inattentive <- n_sessions - length(attentive)
 # Demographics come from the participants' Prolific profiles. A profile Prolific has since
 # deleted reads "DATA_EXPIRED".
 n_label <- function(x) paste0(x, " (", f0(100 * x / n_sessions), "%)")
@@ -212,6 +217,8 @@ In this section we report the results of a validation study. We collected data f
 
 Participants were `r f0(min(participants$age))` to `r f0(max(participants$age))` years old (*M* = `r f1(mean(participants$age))`, *SD* = `r f1(sd(participants$age))`). `r n_label(demo_count("sex", "Male"))` were male and `r n_label(demo_count("sex", "Female"))` were female. In Prolific's simplified ethnicity categories, `r n_label(demo_count("ethnicity", "White"))` were White, `r n_label(demo_count("ethnicity", "Asian"))` Asian, `r n_label(demo_count("ethnicity", "Black"))` Black, `r n_label(demo_count("ethnicity", "Mixed"))` mixed, and `r n_label(demo_count("ethnicity", "Other"))` another ethnicity; `r demo_count("ethnicity", "Prefer not to say")` preferred not to say and `r demo_count("ethnicity", "DATA_EXPIRED")` profile no longer had the information. Participants lived in `r nrow(countries)` countries; the top five were `r top_countries_text`.
 
+We excluded `r n_inattentive` participants (`r f1(100 * n_inattentive / n_sessions)`%) who responded to fewer than `r f0(100 * MIN_ATTENTION)`% of the color changes during the main task, since they may not have been reliably looking at the targets. All analyses below use the remaining `r length(attentive)` participants.
+
 ## Procedure
 
 The experiment began with a welcome screen that asked participants to find a comfortable position in order to minimize movement during the 10-minute experiment. This was followed by a screen that required users to press the space bar, as a means of identifying any users without a physical keyboard. We then asked participants to identify whether they were using an internal or external webcam (with accompanying illustrations for each). The experiment then requested permission to access the camera.
@@ -232,20 +239,14 @@ In addition to the image features needed for WebGazer and SaccadeJS, we also col
 
 ## Results
 
-### How spatially accurrate and precise is SaccadeJS?
+Throughout the entire analysis, we measure spatial distances in percentage of the diagonal of the screen. For example, a distance of 50% would be equal to the distance from a corner of the screen to the middle. For remote studies, where controlling viewing distance is challenging at best, we think this gives readers a clear sense of the magnitude of the errors given typical viewing configurations for the population. [give maybe a rough conversion factor to degrees of visual angle here]
 
-Our first aim was to characterize the spatial accuracy and precision of SaccadeJS. Throughout this section, we measure spatial errors in percentage of the screen diagonal. For remote studies, where controlling viewing distance is challenging at best, we think this gives readers a clear sense of the magnitude of the errors given typical viewing configurations for the population. With that in mind, we measured the distance from each fixation 
+### How spatially accurrate and precise is SaccadeJS?
 
 ```{r}
 #| label: replay
 #| cache: true
-#| cache.extra: !expr c(tools::md5sum("R/validation.R"), ZENODO_MD5)
-# A session counts only if its participant caught at least 85% of the color changes; otherwise
-# they were not reliably looking at the targets.
-MIN_ATTENTION <- 0.85
-attentive <- participants |> filter(probe_hit_rate >= MIN_ATTENTION) |> pull(session)
-n_inattentive <- n_sessions - length(attentive)
-
+#| cache.extra: !expr c(tools::md5sum("R/validation.R"), ZENODO_MD5, MIN_ATTENTION)
 # The frames scored, in ms after the target's 600 ms settle ends: the whole 1000 ms capture
 # window. The settle gives the eyes time to arrive, so every recorded frame after it is fixation.
 SETTLE_MS <- 600
@@ -287,32 +288,48 @@ fwd_wide <- fwd_frames |>
   mutate(difference = webgazer - saccade)
 n_fwd <- nrow(fwd_wide)
 fwd_ci <- t.test(fwd_wide$difference)$conf.int
+# The share of SaccadeJS's frames closer to the target than WebGazer's average median error.
+saccade_frames_beat <- fwd_frames |>
+  filter(tracker == "SaccadeJS", session %in% fwd_wide$session) |>
+  summarise(share = mean(error < mean(fwd_wide$webgazer))) |>
+  pull(share)
 ```
 
-**Notes: accuracy, method**
+```{r}
+#| label: precision
+# Precision, per participant and tracker, on the same frames: the standard deviation of gaze
+# around the mean of its own look, in percent of the screen diagonal. It is the root mean square
+# distance of each frame from its look's mean, pooled over a participant's looks, so a look's
+# offset from the target does not count against it. Looks with a single frame have no spread
+# and are left out.
+# Each frame's offset from its own fixation's mean gaze, and the distance of that offset.
+prec_frames <- fwd_frames |>
+  filter(n() >= 2, .by = c(session, tracker, station)) |>
+  mutate(dev_x = dx - mean(dx), dev_y = dy - mean(dy), .by = c(session, tracker, station)) |>
+  mutate(deviation = sqrt(dev_x^2 + dev_y^2))
+prec_wide <- prec_frames |>
+  summarise(sd = sqrt(mean(deviation^2)), .by = c(session, tracker)) |>
+  pivot_wider(names_from = tracker, values_from = sd) |>
+  rename(saccade = SaccadeJS, webgazer = WebGazer) |>
+  drop_na(saccade, webgazer)
 
-- Error: Euclidean distance from gaze to target, as % of the participant's screen diagonal (CSS px). Per participant: the median over frames.
-- Calibration: once, on the first block's 25-point grid (5 × 5 at 5/27.5/50/72.5/95%).
-- Scored: every station of the two blocks after calibration, 43 per block, 86 per participant. That's each block's 25 grid points plus its 18 test points (9-point validation grid at 15/50/85%, plus 9 random positions, one per cell of a 3 × 3).
-  - Later blocks' grid points sit at the calibration positions, but they are new frames recorded minutes later.
-  - Check (hard-coded, one-off): with the block-1 calibration, later blocks' grid points and test points gave the same error. SaccadeJS 5.31% vs 5.22% (paired p = .19; grid better for 43% of participants); WebGazer 10.2% vs 10.3% (p = .34; 49%). So scoring calibration positions doesn't flatter either tracker, even though both fit their 25 calibration rows almost exactly (in-sample error: 3.19% and 6.03%).
-  - Block 1's own test points are not scored here; they come straight after calibration, and gave lower error (3.92% and 8.28%; hard-coded).
-- WebGazer, as it ships: one feature vector per calibration point (the middle frame, a simulated click); ridge k = 10^−5^; 50-click store (doesn't bind at 25 points).
-- SaccadeJS, per-frame calibration: every calibration frame is a row, weighted by the model's quality score (rescaled to mean 1), unpenalized intercept, λ = `r FRAMES_PENALTY`.
-  - Not the shipped default. Shipped: one quality-weighted mean row per point, λ = 1 (3 at ≤ 9 points), no intercept.
-- Frames scored: `r SETTLE_MS + FIXATION_WINDOW[1]`–`r SETTLE_MS + FIXATION_WINDOW[2]` ms after target onset (the whole 1000 ms capture window after the 600 ms settle). The same frames for both trackers.
-- No smoothing (WebGazer's Kalman filter, SaccadeJS's multi-frame filter), so these are single-frame errors.
-- Exclusion: `r n_inattentive` participants caught < `r 100 * MIN_ATTENTION`% of the color changes; `r n_fwd` remain.
-- Scale: 1% of the diagonal on a 14-inch laptop ≈ 3.6 mm ≈ 1/3° of visual angle at 60 cm (hard-coded, from the cook-off report).
+# Paired within participant, as a ratio: WebGazer's SD over SaccadeJS's, summarised by its
+# geometric mean with a t interval on the log scale, since the spread grows with the value.
+log_ratio <- log(prec_wide$webgazer / prec_wide$saccade)
+prec_ratio <- exp(mean(log_ratio))
+prec_ci <- exp(t.test(log_ratio)$conf.int)
+n_prec <- nrow(prec_wide)
+# The share of SaccadeJS's frames closer to their fixation's mean gaze than WebGazer's average SD.
+saccade_deviations_beat <- prec_frames |>
+  filter(tracker == "SaccadeJS", session %in% prec_wide$session) |>
+  summarise(share = mean(deviation < mean(prec_wide$webgazer))) |>
+  pull(share)
+```
 
-**Notes: accuracy, results**
 
-- Median error, mean across participants: SaccadeJS `r f2(mean(fwd_wide$saccade))`%; WebGazer `r f2(mean(fwd_wide$webgazer))`%.
-- SaccadeJS more accurate for `r sum(fwd_wide$difference > 0)` of `r n_fwd` participants.
-- Mean paired difference: `r f2(mean(fwd_wide$difference))` percentage points (95% CI `r f2(fwd_ci[1])` to `r f2(fwd_ci[2])`; t on per-participant differences).
-- @fig-forward: (A) participant medians, WebGazer vs SaccadeJS, log axes; (B) the share of frames within each distance (median participant, 50% and 80% bands); (C) the median participant's gaze (by SaccadeJS error), every frame on the 3 × 3 validation grid in the block after calibration, on their own screen.
-- Window sensitivity (hard-coded, one-off check, this test set): scoring from 800 ms instead of 600 ms gave SaccadeJS 5.23%, WebGazer 10.27%, 195 of 200. Accuracy barely depends on the window.
-- Cross-validated across blocks instead (calibrate on two blocks, test on the third), from the cook-off report: SaccadeJS 4.20%, WebGazer 9.89% (hard-coded). Not reported here.
+Our first aim was to characterize the spatial accuracy and precision of SaccadeJS. We calibrated each model using the first block's 25-point grid and then measured the model's predictions on all 43 points in the second and third blocks. For SaccadeJS, we used all recorded feature vectors at each calibration point, weighted by the model's quality score. For WebGazer, we used one feature vector per calibration point, as WebGazer has a 50 point maximum as it is shipped. We used measurements taken from 600-1600ms after the target appeared, leaving a wide window for the initial saccade to settle. 
+
+As shown in panel A of @fig-forward, SaccadeJS is more accurate than WebGazer for `r sum(fwd_wide$difference > 0)` of `r n_fwd` participants (`r f1(100 * mean(fwd_wide$difference > 0))`%). We took the median error from the predictions for each participant. The average median error for SaccadeJS is `r f2(mean(fwd_wide$saccade))`%; for WebGazer it is `r f2(mean(fwd_wide$webgazer))`%. The vast majority of predictions made by SaccadeJS (`r f0(100 * saccade_frames_beat)`%) are more accurate than WebGazer's average performance (panel B).
 
 ```{r}
 #| label: fig-forward
@@ -403,48 +420,9 @@ wrap_elements(full = top_row) / wrap_elements(full = gaze_panel + labs(tag = "C"
   plot_layout(heights = c(1, 0.72))
 ```
 
-```{r}
-#| label: precision
-# Precision, per participant and tracker, on the same frames: the standard deviation of gaze
-# around the mean of its own look, in percent of the screen diagonal. It is the root mean square
-# distance of each frame from its look's mean, pooled over a participant's looks, so a look's
-# offset from the target does not count against it. Looks with a single frame have no spread
-# and are left out.
-# Each frame's offset from its own fixation's mean gaze, and the distance of that offset.
-prec_frames <- fwd_frames |>
-  filter(n() >= 2, .by = c(session, tracker, station)) |>
-  mutate(dev_x = dx - mean(dx), dev_y = dy - mean(dy), .by = c(session, tracker, station)) |>
-  mutate(deviation = sqrt(dev_x^2 + dev_y^2))
-prec_wide <- prec_frames |>
-  summarise(sd = sqrt(mean(deviation^2)), .by = c(session, tracker)) |>
-  pivot_wider(names_from = tracker, values_from = sd) |>
-  rename(saccade = SaccadeJS, webgazer = WebGazer) |>
-  drop_na(saccade, webgazer)
+To characterize the precision of both systems, we calculated the standard deviation of each participant's predictions around the mean prediction for each target, combining the horizontal and vertical directions, and pooled this across all targets (excluding targets with only 1 prediction). Because it is measured from the mean prediction rather than the target, this measure does not include accuracy.
 
-# Paired within participant, as a ratio: WebGazer's SD over SaccadeJS's, summarised by its
-# geometric mean with a t interval on the log scale, since the spread grows with the value.
-log_ratio <- log(prec_wide$webgazer / prec_wide$saccade)
-prec_ratio <- exp(mean(log_ratio))
-prec_ci <- exp(t.test(log_ratio)$conf.int)
-n_prec <- nrow(prec_wide)
-```
-
-**Notes: precision, method**
-
-- Same frames and calibration as accuracy.
-- Precision = the standard deviation of gaze around each fixation's own mean gaze: the RMS distance of each frame from its station's mean, pooled over the participant's stations (only stations with ≥ 2 frames). % of the diagonal.
-- Measured around the fixation's own mean, so the fixation's offset from the target (accuracy) doesn't count.
-- The STD precision measure of Holmqvist et al. (2012) / Niehorster et al. (2020) [citations]. Divides by n, not n − 1; combines x and y radially.
-- RMS sample-to-sample (S2S) was dropped. It told the same story (S2S/SD ≈ 1.1 for both trackers, below the 1.41 for independent frame-to-frame noise).
-
-**Notes: precision, results**
-
-- SD, mean across participants: SaccadeJS `r f2(mean(prec_wide$saccade))`%; WebGazer `r f2(mean(prec_wide$webgazer))`%.
-- SaccadeJS smaller for `r sum(prec_wide$webgazer > prec_wide$saccade)` of `r n_prec` participants.
-- WebGazer / SaccadeJS: `r f2(prec_ratio)`× (geometric mean of per-participant ratios; 95% CI `r f2(prec_ci[1])` to `r f2(prec_ci[2])`, t on the log ratio). @fig-precision.
-- Window sensitivity (hard-coded, one-off check, this test set): with 800–1600 ms instead, SD is SaccadeJS 3.88%, WebGazer 6.87%. So including 600–800 ms raises SD by about 10% for both trackers, while accuracy barely moves.
-- Calibration sensitivity (hard-coded, one-off check, this test set): SaccadeJS's shipped calibration is slightly *more* precise than the per-frame one (SD 4.12% vs 4.34%) but less accurate (median error 5.92% vs 5.26%; better than WebGazer for 192 of 200).
-- Cross-validated (the cook-off report, shipped calibration, 200–1000 ms window) gave WebGazer/SaccadeJS 2.18×. The difference is mostly WebGazer: SD 8.26% cross-validated, on 50 clicks, vs 7.51% here, on 25 (hard-coded).
+SaccadeJS's precision was better for `r sum(prec_wide$webgazer > prec_wide$saccade)` of `r n_prec` participants (`r f1(100 * mean(prec_wide$webgazer > prec_wide$saccade))`%). For SaccadeJS, the average SD was `r f2(mean(prec_wide$saccade))`%; for WebGazer it was `r f2(mean(prec_wide$webgazer))`%. The vast majority of predictions made by SaccadeJS (`r f0(100 * saccade_deviations_beat)`%) are closer to their mean prediction than WebGazer's average SD (panel B of @fig-precision).
 
 ```{r}
 #| label: fig-precision
@@ -530,7 +508,7 @@ wrap_elements(full = prec_top) / wrap_elements(full = prec_cloud + labs(tag = "C
   plot_layout(heights = c(1, 0.72))
 ```
 
-### How well does SaccadeJS time saccades?
+### What is the temporal accuracy of SaccadeJS?
 
 ```{r}
 #| label: latency
