@@ -8,6 +8,8 @@ author:
   - name: James
   - name: Alex
 format: typst
+bibliography: references.bib
+bibliographystyle: apa
 ---
 
 ```{r}
@@ -64,6 +66,17 @@ value_of <- function(table, column, ...) {
 data_dir <- validation_data_dir()
 participants <- read_csv(file.path(data_dir, "participants.csv"), show_col_types = FALSE)
 n_sessions <- nrow(participants)
+# Demographics come from the participants' Prolific profiles. A profile Prolific has since
+# deleted reads "DATA_EXPIRED".
+n_label <- function(x) paste0(x, " (", f0(100 * x / n_sessions), "%)")
+demo_count <- function(column, value) sum(participants[[column]] == value, na.rm = TRUE)
+countries <- count(participants, country_of_residence, sort = TRUE)
+top_countries <- head(countries, 5) |>
+  mutate(country = if_else(country_of_residence %in% c("United Kingdom", "United States"),
+                           paste("the", country_of_residence), country_of_residence),
+         label = paste0(country, " (", n, ")"))
+top_countries_text <- paste0(paste(head(top_countries$label, -1), collapse = ", "), ", and ",
+                             tail(top_countries$label, 1))
 ```
 
 # Introduction
@@ -191,11 +204,13 @@ jsPsych ecosystem options.
 
 # Validation Study
 
-We do the comparison with WebGazer not as some kind of benchmark to beat, but rather because WebGazer is by far the most popular approach that is found in the literature and there is a lot of published data about what is and isn't possible with it. By making a direct comparison we hope to connect with this literature and give researchers who are familiar with WebGazer a sense of the degree of improvement that SaccadeJS offers.
+In this section we report the results of a validation study. We collected data from Prolific users with no demographic restrictions in order to provide a generalizable estimate of SaccadeJS's performance in the situations it is likely to be used by the research community. We included a direct comparison with WebGazer as part of the study. We chose to run the comparison with WebGazer because WebGazer is by far the most popular apporach to webcam eye tracking that is found in the literature. Many existing studies have characterized its performance on the kinds of tasks that behavioral researchers employ [@semmelmann2018; @yang2021; @vos2022; @slim2023; @bogdan2024; @hutt2024; @prystauka2024; @saxena2024; @steffan2024; @slim2024; @vandercruyssen2024; @james2025; @munoz2025; @psarra2026]. We use this comparison to give researchers who are familiar with the performance characteristics of WebGazer a clearer sense of the degree of improvement that SaccadeJS offers. 
 
 ## Participants
 
-`r n_sessions` people from Prolific completed the experiment. We sampled people who had completed at least 20 Prolific studies, had at least a 98% approval rate, and had indicated that they would be willing to use a webcam during an experiment. We excluded any Prolific IDs that participated in any of the prior data collection for developing the model. [Demographic breakdown]. 
+`r n_sessions` people from Prolific completed the experiment. We sampled people who had completed at least 20 Prolific studies, had at least a 98% approval rate, and had indicated that they would be willing to use a webcam to record video during an experiment. We excluded any Prolific IDs that participated in any of the prior data collection for developing the model. 
+
+Participants were `r f0(min(participants$age))` to `r f0(max(participants$age))` years old (*M* = `r f1(mean(participants$age))`, *SD* = `r f1(sd(participants$age))`). `r n_label(demo_count("sex", "Male"))` were male and `r n_label(demo_count("sex", "Female"))` were female. In Prolific's simplified ethnicity categories, `r n_label(demo_count("ethnicity", "White"))` were White, `r n_label(demo_count("ethnicity", "Asian"))` Asian, `r n_label(demo_count("ethnicity", "Black"))` Black, `r n_label(demo_count("ethnicity", "Mixed"))` mixed, and `r n_label(demo_count("ethnicity", "Other"))` another ethnicity; `r demo_count("ethnicity", "Prefer not to say")` preferred not to say and `r demo_count("ethnicity", "DATA_EXPIRED")` profile no longer had the information. Participants lived in `r nrow(countries)` countries; the top five were `r top_countries_text`.
 
 ## Procedure
 
