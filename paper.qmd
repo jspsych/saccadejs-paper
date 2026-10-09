@@ -11,11 +11,11 @@ author:
     affiliations:
       - ref: "1"
     orcid: "[ORCID]"
-  - name: Cherrie Chang
+  - name: Alex Teabo
     affiliations:
       - ref: "1"
     orcid: "[ORCID]"
-  - name: Alex Teabo
+  - name: Cherrie Chang
     affiliations:
       - ref: "1"
     orcid: "[ORCID]"
