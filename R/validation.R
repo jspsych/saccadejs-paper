@@ -488,12 +488,6 @@ has_arrival <- function(row) {
     !is.null(row[["previous_target_x"]])
 }
 
-load_arrivals <- function(trials, embedding_dim) {
-  trials |>
-    keep(has_arrival) |>
-    map(\(row) load_arrival(row, embedding_dim))
-}
-
 # When the eyes were halfway from the previous target to this one: gaze is projected onto the
 # line between them, and the crossing is interpolated linearly between the frames on either side.
 # NA when the frames do not show a crossing: gaze must start near the previous target and end
@@ -643,7 +637,7 @@ recording_conditions <- function(trials) {
 # 50-click store never drops a calibration point.
 #
 # `latencies`: saccade latency on every station with a recorded arrival, from a calibration on
-# every grid and test point of the session.
+# the 9-point grid of the arrival's own block.
 #
 # `machine` and `observer`: one row each, describing the participant's machine and their
 # recording conditions. `calibration_reference`: one row, the per-frame conditions averaged over
@@ -674,8 +668,19 @@ replay_session <- function(path, session = NULL, grids = c(9L, 13L, 25L),
     pmap(calibrate_once) |>
     list_rbind()
 
-  latencies <- saccade_latencies(load_arrivals(trials, embedding_dim),
-                                 fit_trackers(stations, saccade_frames))
+  # Latency: each block's arrivals, timed from a fresh calibration on that block's 9-point grid,
+  # as a study recalibrating every block would. A block with fewer than 9 calibration targets is
+  # left out.
+  arrival_rows <- keep(trials, has_arrival)
+  arrivals <- map(arrival_rows, \(row) load_arrival(row, embedding_dim))
+  arrival_blocks <- map_int(arrival_rows, \(row) as.integer(row[["block"]]))
+  latencies <- sort(unique(arrival_blocks)) |>
+    map(\(b) {
+      cal <- keep(stations, \(s) s$block == b && !is_test_point(s) && s$grid_level <= 9)
+      if (count_targets(cal) < 9) return(NULL)
+      saccade_latencies(arrivals[arrival_blocks == b], fit_trackers(cal, saccade_frames))
+    }) |>
+    list_rbind()
 
   # The conditions while the participant calibrated: the first block's grid stations.
   first_block <- min(blocks)
