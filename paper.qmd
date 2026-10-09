@@ -259,7 +259,7 @@ Participants completed three blocks, each containing 43 fixation points. Of the 
 
 After all three blocks were complete, the browser exited fullscreen mode and participants completed a short set of questions. These asked participants whether they wore glasses or contacts during the session, to describe any technical problems, and to describe anything that may have interrupted looking at the targets during the session. Finally, data were uploaded and the participant was redirected to Prolific.
 
-## Data Recording
+## Data Recording {#sec-data-recording}
 
 Our goal with the study was to run the WebGazer and SaccadeJS algorithms on identical images, so we used a modified version of the SaccadeJS library to record the information needed. Both algorithms start with the same facial landmark identification. From there, WebGazer generates two 10x6px cropped grayscale images of the eyes and SaccadeJS generates a 144x36px cropped grayscale image spanning the eyes and bridge of the nose. For the WebGazer crops, we saved the pixel data directly. For SaccadeJS, we attempted to run the encoding model live on the participant's computer. For participants whose device supported the WebGPU framework and was fast enough to encode a frame in less than 85% of the duration of one camera frame, we ran the model in real-time. For other devices, where either the GPU was too slow to keep up with the frame rate or where WebGPU was not available, we queued each image in a pool and processed them using up to three spare CPU threads. From pilot testing, we found that machines with 4GB of RAM or less couldn't handle more than one background CPU thread, so we limited the processing to one thread on these machines. Any images that were not processed by the pool of CPU workers by the end of the experiment were uploaded as raw image crops. We processed these after the fact and then removed the raw images from the dataset to protect privacy.
 
@@ -1006,7 +1006,7 @@ wrap_elements(full = lag_panel + labs(tag = "A") + raw_vs_lag_panel + labs(tag =
   plot_layout(heights = c(1, 1.3))
 ```
 
-### Who is tracked less well?
+### What features predict eye tracking accuracy?
 
 ```{r}
 #| label: covariates
@@ -1165,70 +1165,27 @@ group_med <- function(tr, f, g) {
   groups |> filter(tracker == tr, .data[[f]] == g) |> summarise(error = median(error)) |> pull(error) |> f2()
 }
 group_n <- function(f, g) groups |> filter(.data[[f]] == g) |> pull(session) |> n_distinct()
+# Whether separate cameras gave better images: each image measure's median for separate and built-in
+# cameras, and a Wilcoxon test, uncorrected, since this only follows up the camera result.
+camera_images <- groups |>
+  distinct(session, camera) |>
+  filter(!is.na(camera)) |>
+  inner_join(conditions, by = "session")
+camera_image <- function(measure) {
+  m <- tapply(camera_images[[measure]], camera_images$camera, median, na.rm = TRUE)
+  list(separate = m[["separate"]], built_in = m[["built-in"]],
+       change = 100 * abs(m[["separate"]] / m[["built-in"]] - 1),
+       p = wilcox.test(camera_images[[measure]] ~ camera_images$camera, exact = FALSE)$p.value)
+}
 ```
 
-**Notes: recording conditions, method**
+As described in @sec-data-recording, we measured several different features of sessions (participant level variation) and individual frames (single prediction level variation). [SUPPLEMENTARY MATERIAL] contains detailed descriptions of the methods for measuring each of these characteristics. Here we focus on what measurable aspects of the participant and individual video frames predict gaze accuracy. We report Spearman rank correlations because of the strong skew of the error distribution.
 
-- One value per participant, averaged (or the median) over the session.
-- Measured on the raw WebGazer 10 × 6 eye patches, *before* WebGazer's histogram equalization:
-  - **Brightness:** the left patch's mean, 0–255.
-  - **Contrast:** the mean per-frame SD of the left patch.
-  - **Left–right brightness difference:** |mean of left − mean of right|, as a size, since side lighting isn't biased to either side.
-  - **Sensor noise, frame to frame:** for each pair of consecutive fixation frames, the mean absolute change over all 120 patch pixels; the participant's median over pairs (robust to blinks and head shifts). Relative only: the patches are downsampled, which averages noise away.
-- Measured on SaccadeJS's 144 × 36 eye crop *after* its CLAHE (clip 2, 8 × 8 tiles), i.e. the pixels SaccadeJS encodes:
-  - **Image sharpness:** the median SD of the 4-neighbour Laplacian.
-  - The experiment's own noise estimate (Immerkær, 1996) is on this crop too. It correlated ρ = `r f2(immerkaer_sharpness_rho)` with sharpness, because eye crops are mostly edges, which it reads as noise. Replaced by the frame-to-frame estimate. (With it, noise looked *protective*: ρ = `r f2(value_of(immerkaer_error_rho, rho, tracker == "SaccadeJS"))` with SaccadeJS's error, `r f2(value_of(immerkaer_error_rho, rho, tracker == "WebGazer"))` with WebGazer's; on the earlier test set, that vanished once sharpness was controlled.)
-- From the eye boxes (camera px):
-  - **Interocular distance** (a proxy for viewing distance), and its SD over the session, both as a % of the camera image's width. Every session recorded at 640 × 480 (`r n_distinct(machines$video_width)` distinct width), so camera resolution is not a confound; camera field of view, which is not recorded, still varies.
-  - **Head roll:** |mean roll|, the tilt from upright either way (roll is centred on 0). And the SD of roll over the session.
-- From the face mesh's head-pose matrix:
-  - **Head pitch,** signed; positive = head tipped up.
-  - The sign was inferred, because SaccadeJS's source says it's undocumented: pitch fell as targets moved lower on screen in 79% of sessions (hard-coded, one-off check).
-  - Signed because |pitch| shows nothing (ρ ≈ 0) while signed pitch does.
-- **Eye aspect ratio:** the mean openness of both eyes.
-- **Blinks:** % of frames where the less-open eye is < 70% of the participant's median.
-- Test: Spearman ρ between each condition and each tracker's per-participant median error; Holm over all `r nrow(cov_tests)` tests; `r nrow(cov_sig)` significant.
+@fig-covariates shows the correlations of participant-level features. Of the `r length(COVARIATES)` characteristics we measured, `r nrow(filter(cov_sig, tracker == "SaccadeJS"))` are statistically significant predictors of SaccadeJS's accuracy after Holm correction (`r nrow(filter(cov_sig, tracker == "WebGazer"))` for WebGazer: the first two below). Participants with (1) more variance in their head roll over the course of the session (`r rho_of("head roll SD", "SaccadeJS")`), (2) lower contrast in the eye images (`r rho_of("eye contrast", "SaccadeJS")`), (3) smaller interocular distance -- which likely reflects sitting further away from the camera (`r rho_of("interocular distance", "SaccadeJS")`), and (4) blurrier images (`r rho_of("image sharpness", "SaccadeJS")`) had more error in the gaze predictions. 
 
+At the level of individual images, measuring correlations within a participant (@fig-within), we checked two kinds of image properties. One was to measure change since calibration. Here, everything we measured had a small but statistically significant correlation with accuracy for both trackers (SaccadeJS median ρ from `r f2(min(filter(frame_tests, tracker == "SaccadeJS", group == "Drift from calibration")$median_rho))` to `r f2(max(filter(frame_tests, tracker == "SaccadeJS", group == "Drift from calibration")$median_rho))`). Time since calibration, changes in head pitch, roll, and yaw, changes in interocular distance, shifts in head position, and changes in eye brightness were all correlated with increased error. We also measured some features of the eye images that changed moment to moment. Eyes that are more open correlate with lower error, blinks correlate with higher error, and increased blur of the image correlates with higher error. 
 
-**Notes: recording conditions, results** (@fig-covariates; rows ordered by SaccadeJS |ρ|; filled dots = Holm p < .05)
-
-- Contrast: `r rho_both("eye contrast")`. More contrast → more accurate.
-- Interocular distance: `r rho_both("interocular distance")`. Closer to the camera → more accurate.
-- Head roll SD: `r rho_both("head roll SD")`. More head movement → less accurate.
-- Sharpness: `r rho_both("image sharpness")`.
-- Frame-to-frame sensor noise: `r rho_both("sensor noise")`. More noise → worse, but not significant after correction (uncorrected p = `r p_uncorrected("sensor noise", "SaccadeJS")` and `r p_uncorrected("sensor noise", "WebGazer")`).
-- Not related: brightness, left–right brightness difference, blinks (and others; see the figure).
-- Brightness checks:
-  - No U-shape. Quadratic term of log error on brightness: p = `r p_fmt(brightness_check("SaccadeJS", quadratic_p))` (SaccadeJS), `r p_fmt(brightness_check("WebGazer", quadratic_p))` (WebGazer). Distance from the median brightness vs error: ρ = `r f2(brightness_check("SaccadeJS", distance_rho))`, `r f2(brightness_check("WebGazer", distance_rho))`.
-  - But the range is dim: median `r brightness_quantile(0.5)`/255, 95% below `r brightness_quantile(0.95)`, max `r brightness_quantile(1)`. Overexposure was never sampled.
-- Normalisation: both trackers normalise brightness and contrast (WebGazer by histogram equalization, SaccadeJS by CLAHE). Contrast still matters, probably because equalization can't restore detail a flat image never captured, and it amplifies noise (interpretation).
-- Caveat: these are correlations across participants, not causes.
-
-**Notes: within participants, frame by frame** (@fig-within)
-
-- A different set from the across-participant one: what changes from moment to moment within a session. Setup measures (mean brightness, absolute distance, SDs) barely vary within a session.
-- Same frames and calibration as accuracy: every scored frame of blocks 2–3, out-of-sample.
-- Drift from calibration, each relative to the participant's own calibration frames (block 1's grid):
-  - **Head shift:** how far the eyes' midpoint has moved in the camera image, in interocular distances.
-  - **Interocular distance change:** |interocular distance / its calibration mean − 1|, i.e. moving nearer or farther, as a proportion. Same per-frame measure as Fig. 10's interocular distance (eye-box centres), relative to the participant's own calibration. Turning the head also shortens it, so it overlaps a little with yaw change.
-  - **Head yaw / pitch / roll change:** |angle − its calibration mean|, in degrees (yaw and pitch from the head pose, roll from the eye boxes).
-  - **Time since calibration:** minutes since the last calibration station.
-  - **Eye brightness change:** |the left eye patch's mean brightness on this frame − its calibration mean|. A change over time in one eye (lighting or exposure shifting), not a left–right difference.
-- Eye state and image:
-  - **Eye aspect ratio:** the less open eye's openness. **Blinks:** whether it is below 70% of the participant's median.
-  - **Image sharpness:** the eye crop's Laplacian SD (after SaccadeJS's CLAHE).
-  - Sensor noise (the frame-to-frame change) is left out: a property of the camera, stable within a session.
-- **Model quality weight:** SaccadeJS's own per-frame quality score (SaccadeJS only).
-- Test: Spearman ρ within each participant (skipped if fewer than 10 frames, or no variation); median across participants against 0 (Wilcoxon signed-rank); Holm over all `r nrow(frame_tests)` tests; `r nrow(frame_sig)` significant.
-- Results, median ρ:
-  - Head shift: `r frame_rho_both("head shift")`
-  - Interocular distance change: `r frame_rho_both("interocular distance change")`
-  - Head yaw change: `r frame_rho_both("head yaw change")`; pitch: `r frame_rho_both("head pitch change")`; roll: `r frame_rho_both("head roll change")`
-  - Time since calibration: `r frame_rho_both("time since calibration")`
-  - Eye aspect ratio: `r frame_rho_both("eye aspect ratio")`; blinks: `r frame_rho_both("blinks")`
-  - Image sharpness: `r frame_rho_both("image sharpness")`; eye brightness change: `r frame_rho_both("eye brightness change")`
-  - Model quality weight (SaccadeJS): `r frame_rho_of("model quality weight", "SaccadeJS")`
-- The cook-off report correlated a different, setup-style set within sessions, with an in-sample calibration and SaccadeJS only.
+The SaccadeJS model outputs a quality weight for each image. This model-derived measure was among the strongest predictors of error (`r frame_rho_of("model quality weight", "SaccadeJS")`), on par with eye openness (`r frame_rho_of("eye aspect ratio", "SaccadeJS")`) and blinks (`r frame_rho_of("blinks", "SaccadeJS")`). This measure is computed in real-time, and could be used by researchers to estimate when prediction quality is poor.
 
 ```{r}
 #| label: fig-covariates
@@ -1315,22 +1272,7 @@ icon_panel(names(within_rows), within_rows, n_rows = nrow(within_layout)) + with
   plot_layout(widths = c(1.2, 2))
 ```
 
-**Notes: groups**
-
-- Factors: eyewear (glasses vs none; contacts count as none), camera (built-in vs separate; "unsure" dropped), sex, Prolific's simplified ethnicity, and age (Spearman; shown unbinned with a loess trend per tracker).
-- Excluded: missing or withheld answers (CONSENT_REVOKED, DATA_EXPIRED, "Prefer not to say"), and groups < 5.
-- Tests: Wilcoxon for 2 groups, Kruskal–Wallis for more; Holm over all `r nrow(group_tests)` tests (both trackers).
-- Significant after correction: `r if (nrow(group_sig)) paste(sprintf("%s (%s)", group_sig$factor, group_sig$tracker), collapse = "; ") else "none"`.
-- Glasses (n = `r group_n("eyewear", "glasses")`) vs none, median error:
-  - SaccadeJS `r group_med("SaccadeJS", "eyewear", "glasses")`% vs `r group_med("SaccadeJS", "eyewear", "no glasses")`%
-  - WebGazer `r group_med("WebGazer", "eyewear", "glasses")`% vs `r group_med("WebGazer", "eyewear", "no glasses")`%
-- Separate camera (n = `r group_n("camera", "separate")`) vs built-in:
-  - SaccadeJS `r group_med("SaccadeJS", "camera", "separate")`% vs `r group_med("SaccadeJS", "camera", "built-in")`%
-  - WebGazer `r group_med("WebGazer", "camera", "separate")`% vs `r group_med("WebGazer", "camera", "built-in")`%
-- Sex, ethnicity, age: n.s. after correction.
-- Age, Spearman ρ with median error: SaccadeJS `r f2(groups |> filter(tracker == "SaccadeJS", is.finite(age)) |> summarise(rho = cor(age, error, method = "spearman")) |> pull(rho))`, WebGazer `r f2(groups |> filter(tracker == "WebGazer", is.finite(age)) |> summarise(rho = cor(age, error, method = "spearman")) |> pull(rho))` (n.s. after correction). The loess trend rises mostly after about 45 (from the figure).
-- Background: glasses add reflections and lens edges; an external camera sits at a different angle; appearance-based models are reported to work less well for some faces [citation].
-- Caveat: confounded. People with separate cameras may differ in their rooms, machines and screens. @fig-groups.
+No demographic features (age, ethnicity, sex) were statistically significant predictors of error. Participants who wore glasses (n = `r group_n("eyewear", "glasses")`) had higher error (median `r group_med("SaccadeJS", "eyewear", "glasses")`% vs `r group_med("SaccadeJS", "eyewear", "no glasses")`% for SaccadeJS; `r group_med("WebGazer", "eyewear", "glasses")`% vs `r group_med("WebGazer", "eyewear", "no glasses")`% for WebGazer), and participants who used a separate rather than built-in camera (n = `r group_n("camera", "separate")`) had less error (`r group_med("SaccadeJS", "camera", "separate")`% vs `r group_med("SaccadeJS", "camera", "built-in")`% for SaccadeJS; `r group_med("WebGazer", "camera", "separate")`% vs `r group_med("WebGazer", "camera", "built-in")`% for WebGazer; @fig-groups). The camera result surprised us, as we expected the consistent placement of built-in webcams to be beneficial. Our working hypothesis is that separate cameras tend to be higher quality. Their images of the eyes had `r f0(camera_image("contrast")$change)`% more contrast and `r f0(camera_image("noise")$change)`% less sensor noise than built-in cameras. Contrast was one of the strongest participant-level predictors of error (@fig-covariates).
 
 ```{r}
 #| label: fig-groups
