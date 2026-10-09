@@ -1,13 +1,31 @@
 ---
 title: "Saccade.js: Real-time eye tracking in a web browser"
 author:
-  - name: Josh
-  - name: Colin
-  - name: Cherrie
-  - name: Olir
-  - name: James
-  - name: Alex
-format: typst
+  - name: Josh de Leeuw
+    affiliations:
+      - ref: "1"
+    orcid: 0000-0003-4815-2364
+    email: jdeleeuw@vassar.edu
+    corresponding: true
+  - name: Colin Mikulski
+    affiliations:
+      - ref: "1"
+    orcid: "[ORCID]"
+  - name: Cherrie Chang
+    affiliations:
+      - ref: "1"
+    orcid: "[ORCID]"
+  - name: Alex Teabo
+    affiliations:
+      - ref: "1"
+    orcid: "[ORCID]"
+affiliations:
+  - id: "1"
+    name: Vassar College
+    department: Cognitive Science Department
+format: preprint-typst
+authornote: |
+  We thank Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project.
 bibliography: references.bib
 bibliographystyle: apa
 ---

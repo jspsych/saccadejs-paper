@@ -10,7 +10,7 @@ execute:
   message: false
 
 format:
-  typst:
+  preprint-typst:
     papersize: us-letter
     margin:
       x: 1in
