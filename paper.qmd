@@ -207,7 +207,7 @@ jsPsych ecosystem options.
 
 - Including timing correction plugin. Describe system and basic validation LED study.
 
-## Timing Correction
+## Timing Correction {#sec-timing}
 
 One of the limitations of webcam eyetracking compared to laboratory equipment is temporal accuracy and sampling rate. The sampling rate of laboratory equipment can reach 500–2000 Hz, while webcams typically sample only 15-30 times per second. This is an unavoidable drawback of webcam-based eye tracking. Temporal accuracy is also usually worse with webcam systems. Browsers timestamp when a display change is drawn and when a camera frame is captured, on the same clock, but not the physical delays in between: the screen takes time to show a change, and the camera takes time to expose, process and stamp a frame. Their sum is unknown and varies across machines.
 
@@ -674,7 +674,7 @@ ggplot(screen_map, aes(cx, cy, fill = rel)) +
         legend.position = "right", legend.title = element_text(size = 7))
 ```
 
-### How much calibration does a study need?
+### How much calibration does a study need? {#sec-calibration}
 
 ```{r}
 #| label: calibration
@@ -907,46 +907,24 @@ tracker_agreement <- lat_sessions |>
   pivot_wider(names_from = tracker, values_from = raw) |>
   summarise(r = cor(SaccadeJS, WebGazer, use = "complete"))
 lat <- function(tr, column) value_of(lat_summary, {{ column }}, tracker == tr)
+# The distribution of participants' median latency, for the text: median (IQR).
+lat_dist <- function(tr, column) {
+  q <- quantile(filter(lat_sessions, tracker == tr)[[column]], c(0.25, 0.5, 0.75), names = FALSE)
+  sprintf("%s ms (IQR %s–%s ms)", f0(q[2]), f0(q[1]), f0(q[3]))
+}
+# The delays the plugin judged reliable, the ones the latency analysis uses.
+lag_reliable <- camera_lag |> filter(timing_verdict == "OK", is.finite(lag_ms)) |> pull(lag_ms)
 ```
 
+As described in @sec-timing, the temporal accuracy of webcam eye tracking has historically been poor due to unmeasured and unknown delays between the clock that controls the display and the clock that timestamps video frames. We developed a procedure that measures this delay and corrects for it. In this Prolific experiment, we don't have ground truth timing measurements -- however, the timing of a saccade to a new target when the current target disappears at the same moment is known to take around 175-200ms [@saslow1967; @bargary2017]. In particular, @bargary2017 measured saccade latency in `r format(bargary_n, big.mark = ",")` healthy young adults with a step task like ours, in which a target jumped 3–15° after a random 500–1500 ms delay; participants' median latencies averaged `r f0(bargary_mean)` ms. In this analysis, we check whether the correction algorithm produces estimates of saccade latency that are in line with these data.
 
+We measured camera delay using the time sync plugin at the start of the experiment. As shown in @fig-latency A, the estimated delays were around 100ms (median `r f0(median(lag_reliable))` ms, range `r f0(min(lag_reliable))`–`r f0(max(lag_reliable))` ms, among the `r length(lag_reliable)` participants whose measurement the plugin judged reliable). To measure saccade timing with the variable and low sampling rates of the webcams, we estimated when the gaze crossed the midpoint of a line between the old and new targets. We applied a linear interpolation of gaze so that the sampling rate of the camera didn't bias the measurement. Without it, the crossing would be placed at the first frame past the midpoint, which comes later on average the fewer frames a camera records, so slower cameras would produce slower saccades. We used the repeating calibration strategy described in @sec-calibration to improve accuracy of the estimates.
 
-**Notes: saccade latency, method**
-
-- Step task: each target appears while the eyes are still on the previous one. The camera records through the 600 ms settle, so the arrival saccade is in the data.
-- Latency = when gaze, projected onto the line from the old target to the new one, crosses halfway. Interpolated linearly between the two frames on either side.
-  - Why not a velocity threshold: at 15–30 fps (one frame every 33–67 ms), a 30–50 ms saccade usually falls between frames.
-  - Snapping to the nearest frame biased the median by +39 ms on a synthetic session (cook-off report; hard-coded).
-- This estimates the saccade's midpoint, about half the saccade's duration after onset: 22–27 ms for 10–15° saccades, by Carpenter's (1988) duration of D ≈ 21 + 2.2 ms per degree [verify in Carpenter, *Movements of the Eyes*; see also Bahill, Clark & Stark, 1975]. The figure shifts onset norms by `r MIDPOINT_OFFSET_MS` ms.
-- Step task by design (`station_gap: 0`): the old target disappears as the new one appears. A gap before the target shortens latency to ~150 ms and an overlap lengthens it to ~250 ms; simultaneous offset and onset gives ~200 ms (Saslow, 1967, *JOSA* 57, 1024–1029). So step-task norms are the right comparison.
-- Each participant's camera delay (loopback lag, from the SaccadeJS time-sync plugin) is subtracted from each latency.
-- Calibration for this analysis: recalibrated every block, on that block's 9-point grid, and applied to that block's saccades. Both trackers use the same 9 points (well under WebGazer's 50-click store). A block with fewer than 9 usable calibration points is left out.
-- A station counts only if the crossing is clear: gaze starts near the old target (median of the first 2 frames ≤ 0.4 of the way) and ends near the new one (median of the last 3 ≥ 0.6); it isn't already past halfway on the first frame; and there are ≥ 6 frames.
-- SaccadeJS is timed only where every frame of the arrival was embedded (true for all frames in the released dataset).
-
-**Notes: saccade latency, results**
-
-- Per-participant median latency, minus camera delay, mean (SD) across participants:
-  - SaccadeJS `r f0(lat("SaccadeJS", mean))` ms (`r f0(lat("SaccadeJS", sd))`); `r lat("SaccadeJS", sessions)` participants, `r format(lat("SaccadeJS", stations), big.mark = ",")` saccades.
-  - WebGazer `r f0(lat("WebGazer", mean))` ms (`r f0(lat("WebGazer", sd))`); `r lat("WebGazer", sessions)` participants, `r format(lat("WebGazer", stations), big.mark = ",")` saccades.
-- Within-participant spread (IQR of latencies), mean across participants: SaccadeJS `r f0(lat("SaccadeJS", iqr))` ms; WebGazer `r f0(lat("WebGazer", iqr))` ms.
-- Camera delay (time-sync plugin): median `r lag_quantile(0.5)` ms; 5th–95th percentile `r lag_quantile(0.05)`–`r lag_quantile(0.95)` ms; range `r lag_quantile(0)`–`r lag_quantile(1)` ms. `r n_lag_unreliable` of `r nrow(camera_lag)` measurements flagged UNRELIABLE by the plugin; those participants are excluded from the latency analysis.
-- Evidence the per-participant correction works:
-  - Uncorrected latency follows the measured delay across participants: r = `r f2(lat("SaccadeJS", r_raw_lag))` (SaccadeJS), `r f2(lat("WebGazer", r_raw_lag))` (WebGazer); slope `r f2(lat("SaccadeJS", slope_raw_lag))` and `r f2(lat("WebGazer", slope_raw_lag))` ms per ms (1 = the delay accounts for all of it).
-  - Correcting narrows the spread of participants' median latencies: SD `r f0(lat("SaccadeJS", sd_raw))` → `r f0(lat("SaccadeJS", sd))` ms (SaccadeJS), `r f0(lat("WebGazer", sd_raw))` → `r f0(lat("WebGazer", sd))` ms (WebGazer). Subtracting noise would widen it instead.
-  - Interpretation: a slope below 1 fits measurement error in the delay (it attenuates the slope).
-- The two trackers' uncorrected per-participant latencies, from the same frames, correlate r = `r f2(tracker_agreement$r)`, so the figure's panel B shows SaccadeJS's only.
-- Comparison norm: Bargary et al. (2017), *Vision Research* 141, 157–169. Over 1000 healthy young adults; a step to ±3–15° after a random 500–1500 ms foreperiod. Participants' median pro-saccade latency: mean 177.2 ms, median 174, SD 18.5, range 142–322 (their Table 1). Digitized from their Fig. 1 (`reference/digitize_bargary2017.R`; it reproduces the table: mean `r f1(bargary_mean)` ms, N `r bargary_n`).
-  - Ours, at the midpoint, minus `r MIDPOINT_OFFSET_MS` ms ≈ onset of about `r f0(lat("SaccadeJS", mean) - MIDPOINT_OFFSET_MS)` ms: slower than Bargary's 177 ms, but well inside their range.
-  - Directions that plausibly explain slower: an older sample (19–64 here; latency rises with age, slowest at 60–79: Munoz, Broughton, Goldring & Armstrong, 1998, *Exp Brain Res* 121, 391–400); larger, screen-spanning saccades (latency depends on eccentricity: Kalesnykas & Hallett, 1994, *Vision Research* 34, 517–531 [check direction for large amplitudes]); a concurrent color-change task (not cited; interpretation).
-  - Working the other way: timing here is fairly predictable (a fixed 1600 ms per target), and temporal predictability can shorten latency (Shelhamer & Joiner, 2003, *J Neurophysiol* 90; see also Findlay, 1981, *Vision Research* 21, 347–354). Locations are shuffled, so predictive saccades of the kind those papers show aren't possible here.
-- Precedent for camera-based latency: smartphone-camera latency distributions matched a high-speed camera, test–retest ICC 0.76 (Lai, Saavedra-Peña, Sodini, Sze & Heldt, 2019, *IEEE J Biomed Health Inform*).
-- Interpretation: the trackers agree closely on the mean, so the camera's frame rate limits it more than the gaze model does.
-- @fig-latency: (A) camera delay; (B) uncorrected latency vs delay; (C) latency before and after the correction, with Bargary et al.'s distribution shifted to the midpoint.
+As shown in @fig-latency B, without correction there is a positive relationship between the measured camera delay and the saccade latency (r = `r f2(lat("SaccadeJS", r_raw_lag))`, slope `r f2(lat("SaccadeJS", slope_raw_lag))` ms per ms). This is as expected for uncorrected measurements. After subtracting out the camera delay for each participant, the estimate of saccade timing drops from `r lat_dist("SaccadeJS", "raw")` to `r lat_dist("SaccadeJS", "corrected")` for SaccadeJS, and from `r lat_dist("WebGazer", "raw")` to `r lat_dist("WebGazer", "corrected")` for WebGazer (@fig-latency C). The latencies reported by @bargary2017 mark the saccade's onset and ours its midpoint, about half a saccade's duration later [@carpenter1988], so we shifted their distribution `r MIDPOINT_OFFSET_MS` ms later. When we compare our estimates to this shifted distribution, we see that the corrected estimates of saccade timing are inline with the expected distribution. 
 
 ```{r}
 #| label: fig-latency
-#| fig-cap: "Camera delay and saccade latency. (A) Each participant's camera delay, measured by the SaccadeJS time-sync plugin, shaded by whether the plugin judged the measurement reliable; flagged participants are left out of B and C. (B) Each participant's median saccade latency from SaccadeJS before correction, against their camera delay; the dashed line has a slope of 1, through the mean. (C) Each participant's median latency before and after subtracting their camera delay; boxes span the middle half of participants. Gray: the distribution of participants' median latency in a similar step task (Bargary et al., 2017; N ≈ 1,050 young adults), shifted 25 ms later from saccade onset to its midpoint."
+#| fig-cap: "Camera delay and saccade latency. (A) Each participant's camera delay, measured by the SaccadeJS time-sync plugin, shaded by whether the plugin judged the measurement reliable; flagged participants are left out of B and C. (B) Each participant's median saccade latency from SaccadeJS before correction, against their camera delay; the dashed line has a slope of 1, through the mean. (C) Each participant's median latency before and after subtracting their camera delay; boxes span the middle half of participants. Gray: the distribution of participants' median latency in a similar step task, from 1,026 young adults in @bargary2017, shifted 25 ms later from saccade onset to its midpoint."
 #| fig-width: 6.5
 #| fig-height: 5.6
 # (A) The camera delay.
