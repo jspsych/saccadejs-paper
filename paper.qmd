@@ -207,6 +207,16 @@ jsPsych ecosystem options.
 
 - Including timing correction plugin. Describe system and basic validation LED study.
 
+## Timing Correction
+
+One of the limitations of webcam eyetracking compared to laboratory equipment is temporal accuracy and sampling rate. The sampling rate of laboratory equipment can reach 500–2000 Hz, while webcams typically sample only 15-30 times per second. This is an unavoidable drawback of webcam-based eye tracking. Temporal accuracy is also usually worse with webcam systems. Browsers timestamp when a display change is drawn and when a camera frame is captured, on the same clock, but not the physical delays in between: the screen takes time to show a change, and the camera takes time to expose, process and stamp a frame. Their sum is unknown and varies across machines.
+
+To solve this problem, we developed a timing calibration routine that measures this delay for each participant. For 15 seconds, the display switches between black and white at random intervals of 500–1000 ms, and the participant's face and room reflect the change into the camera image. For each candidate delay from 0 to 600 ms, the algorithm checks whether the frame-to-frame change in camera brightness just after each display change matches its direction, and it selects the delay at which all of them line up. (Correlating brightness with the black-and-white sequence directly does not work, because webcam auto-exposure quickly compensates for changes in overall brightness.) Because the changes fall at random points relative to the camera's frames, the estimate is more precise than a single frame interval. The routine flags the estimate as unreliable when the brightness changes are faint, do not narrow the delay to less than one frame, or disagree between the two halves of the recording. The result is subtracted from each camera frame's timestamp.
+
+To validate this approach, we used a custom Arduino-based timing device that included a phototransistor to detect screen changes and an LED in view of the webcam that turned on within 1ms of the screen brightness changing. We first measured the camera lag using the time sync algorithm, and then confirmed that applying the measured value to the video of the LED resulted in alignment between the display clock and the LED turning on. [Do we need to report some data here??].
+
+In @sec-latency, we report further evidence that this works by measuring the timing of saccades with human participants.
+
 # Validation Study
 
 In this section we report the results of a validation study. We collected data from Prolific users with no demographic restrictions in order to provide a generalizable estimate of SaccadeJS's performance in the situations it is likely to be used by the research community. We included a direct comparison with WebGazer as part of the study. We chose to run the comparison with WebGazer because WebGazer is by far the most popular apporach to webcam eye tracking that is found in the literature. Many existing studies have characterized its performance on the kinds of tasks that behavioral researchers employ [@semmelmann2018; @yang2021; @vos2022; @slim2023; @bogdan2024; @hutt2024; @prystauka2024; @saxena2024; @steffan2024; @slim2024; @vandercruyssen2024; @james2025; @munoz2025; @psarra2026]. We use this comparison to give researchers who are familiar with the performance characteristics of WebGazer a clearer sense of the degree of improvement that SaccadeJS offers. 
@@ -741,7 +751,7 @@ grid_paired <- by_grid |>
   drop_na(g9, g25) |>
   summarise(n = n(), mean9 = mean(g9), mean25 = mean(g25), gain = mean(g9 - g25),
             lo = t.test(g9 - g25)$conf.int[1], hi = t.test(g9 - g25)$conf.int[2],
-            better = sum(g25 < g9), p = wilcox.test(g9 - g25)$p.value, .by = tracker)
+            better = sum(g25 < g9), .by = tracker)
 grid_pair <- function(tr, column) value_of(grid_paired, {{ column }}, tracker == tr)
 # Drift, paired within participant: the same block against two blocks later.
 lag_paired <- by_lag |>
@@ -784,7 +794,7 @@ scheme_dist <- function(tr, s, b) {
 
 SaccadeJS and WebGazer can both be calibrated using an arbitrary set of calibration points. To provide researchers with guidance on how and when to calibrate, we measured the effect of different calibration protocols on accuracy. This was possible because we saved image features and embeddings instead of the normal usage of both systems where only gaze predictions would be saved after calibration. In each block of 43 points, the 25-point calibration grid also contained the 9-point and 13-point grids as nested subsets. 
 
-As shown in the left panel of @fig-calibration, the accuracy of predictions for SaccadeJS is relatively stable across the three calibration sets, but there is a reliable small gain in improvement with more calibration points. Going from 9 to 25 points reduced SaccadeJS's average error from `r f2(grid_pair("SaccadeJS", mean9))`% to `r f2(grid_pair("SaccadeJS", mean25))`%, a gain of `r f2(grid_pair("SaccadeJS", gain))` percentage points (95% CI `r f2(grid_pair("SaccadeJS", lo))` to `r f2(grid_pair("SaccadeJS", hi))`); error was lower with 25 points for `r grid_pair("SaccadeJS", better)` of `r grid_pair("SaccadeJS", n)` participants (Wilcoxon signed-rank *p* `r if_else(grid_pair("SaccadeJS", p) < 0.001, "< .001", paste("=", p_fmt(grid_pair("SaccadeJS", p))))`). WebGazer shows a similar small but reliable improvement as the number of calibration points increases. Its average error fell from `r f2(grid_pair("WebGazer", mean9))`% to `r f2(grid_pair("WebGazer", mean25))`%, a gain of `r f2(grid_pair("WebGazer", gain))` percentage points (95% CI `r f2(grid_pair("WebGazer", lo))` to `r f2(grid_pair("WebGazer", hi))`), and was lower with 25 points for `r grid_pair("WebGazer", better)` of `r grid_pair("WebGazer", n)` participants (*p* `r if_else(grid_pair("WebGazer", p) < 0.001, "< .001", paste("=", p_fmt(grid_pair("WebGazer", p))))`).
+As shown in the left panel of @fig-calibration, the accuracy of predictions for SaccadeJS is relatively stable across the three calibration sets, but there is a reliable small gain in improvement with more calibration points. Going from 9 to 25 points reduced SaccadeJS's average error from `r f2(grid_pair("SaccadeJS", mean9))`% to `r f2(grid_pair("SaccadeJS", mean25))`%, a gain of `r f2(grid_pair("SaccadeJS", gain))` percentage points (95% CI `r f2(grid_pair("SaccadeJS", lo))` to `r f2(grid_pair("SaccadeJS", hi))`); error was lower with 25 points for `r grid_pair("SaccadeJS", better)` of `r grid_pair("SaccadeJS", n)` participants. WebGazer shows a similar small but reliable improvement as the number of calibration points increases. Its average error fell from `r f2(grid_pair("WebGazer", mean9))`% to `r f2(grid_pair("WebGazer", mean25))`%, a gain of `r f2(grid_pair("WebGazer", gain))` percentage points (95% CI `r f2(grid_pair("WebGazer", lo))` to `r f2(grid_pair("WebGazer", hi))`), and was lower with 25 points for `r grid_pair("WebGazer", better)` of `r grid_pair("WebGazer", n)` participants.
 
 The middle panel of @fig-calibration illustrates the effect of drift from calibration. Below, each value is the median of participants' median errors, with the interquartile range across participants. Focusing on the SaccadeJS results, accuracy is highest for points that are presented immediately after calibration, at `r lag_dist("SaccadeJS", 0)`, and then it degrades after only a few minutes. One block later, about `r lag_min(1)` minutes after calibrating, error was `r lag_dist("SaccadeJS", 1)`, and two blocks later, about `r lag_min(2)` minutes after, it was `r lag_dist("SaccadeJS", 2)`. The median rose by `r lag_rise("SaccadeJS")`%, and error was higher two blocks later for `r lag_pair("SaccadeJS", worse)` of `r lag_pair("SaccadeJS", n)` participants. WebGazer drifted as well, from `r lag_dist("WebGazer", 0)` to `r lag_dist("WebGazer", 2)`, a `r lag_rise("WebGazer")`% rise in the median.
 
@@ -849,7 +859,7 @@ error_max <- max(size_and_time_data$error, recal_data$error)
         panel.grid.major.x = element_blank())
 ```
 
-### What is the temporal accuracy of SaccadeJS?
+### What is the temporal accuracy of SaccadeJS? {#sec-latency}
 
 ```{r}
 #| label: latency
@@ -898,6 +908,8 @@ tracker_agreement <- lat_sessions |>
   summarise(r = cor(SaccadeJS, WebGazer, use = "complete"))
 lat <- function(tr, column) value_of(lat_summary, {{ column }}, tracker == tr)
 ```
+
+
 
 **Notes: saccade latency, method**
 
