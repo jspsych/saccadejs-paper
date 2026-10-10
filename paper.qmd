@@ -1410,7 +1410,7 @@ gpu_inline <- function(speed) f0(value_of(gpu_by_camera, inline, camera == speed
 #| label: fig-hardware
 #| fig-cap: "What participants' machines could do. (A) The share of participants whose camera delivered (shaded) and whose machine tracked gaze live (line) at least a given number of frames per second. (B) The path each machine's encoder took, by the GPU maker WebGPU reported; colors as in the legend above C. (C) The time one frame took to encode: on the GPU, by its maker; on the CPU in the page, for machines without WebGPU; and in one background CPU worker, for deferred machines. One dot per machine, colored by its path; black ticks mark each row's median. Dashed lines mark one camera frame at 30 and 15 fps."
 #| fig-width: 6.5
-#| fig-height: 3.6
+#| fig-height: 4.2
 # (A) How much of the sample reaches each rate, in 2 fps steps: each step's height is the share of
 # participants at or above its lower edge, for the camera's own rate (shaded) and for the live gaze
 # rate SaccadeJS achieved (line). Cameras nominally at 30 fps measure just under it, so the last
@@ -1466,7 +1466,7 @@ encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
 
 # The paths' legend sits on C, the full-width panel; B's colors mean the same.
 (free(reach_plot) | path_plot) / encode_cost_plot +
-  plot_layout(heights = c(1, 1.15)) +
+  plot_layout(heights = c(1, 1.6)) +
   plot_annotation(tag_levels = "A")
 ```
 
