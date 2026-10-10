@@ -14,7 +14,7 @@ author:
   - name: Alex Teabo
     affiliations:
       - ref: "1"
-    orcid: "[ORCID]"
+    orcid: https://orcid.org/0009-0005-6025-5077
   - name: Cherrie Chang
     affiliations:
       - ref: "1"
@@ -1404,7 +1404,25 @@ gpu_by_camera <- runtime |>
   mutate(camera = if_else(camera_fps_start >= 25, "fast", "slow")) |>
   summarise(n = n(), inline = 100 * mean(encoder == "inline"), .by = camera)
 gpu_inline <- function(speed) f0(value_of(gpu_by_camera, inline, camera == speed))
+# Across all machines: how many kept up with their camera, and the median participant's live gaze
+# rate against their camera's.
+live_overall <- runtime |>
+  summarise(keep_up = 100 * mean(keeps_up, na.rm = TRUE),
+            live = median(live, na.rm = TRUE),
+            camera = median(camera_fps_start, na.rm = TRUE))
+# The range of the median encode time across a set of rows of panel C, for the text.
+encode_range <- function(places) {
+  m <- filter(encode_summary, place %in% places)$median
+  if (f0(min(m)) == f0(max(m))) f0(min(m)) else paste0(f0(min(m)), "–", f0(max(m)))
+}
 ```
+
+The major tradeoff of SaccadeJS relative to WebGazer is that it is a more computationally expensive algorithm to run. In our sample, we found that most of the devices used by participants were unable to deliver gaze predictions at the sampling rate of the webcam. As shown in @fig-hardware A, only `r f0(live_overall$keep_up)`% of machines kept up with their camera (delivering at least 90% of its frame rate); the median participant received `r f0(live_overall$live)` gaze samples per second from a camera running at `r f0(live_overall$camera)` frames per second.
+
+The SaccadeJS model is optimized to run on a GPU, which, when available, is accessed through the browser's WebGPU interface. In our sample, machines with Apple Silicon chips or an NVIDIA GPU took about `r encode_range(c("GPU: Apple Silicon", "GPU: NVIDIA"))` ms to encode one frame (medians), while encoding on the CPU took `r encode_range(c("CPU, in the page", "CPU, one worker"))` ms per frame (@fig-hardware C). Most machines with WebGPU capability were unable to keep up with the camera frame rate. These were generally chips with integrated graphics units from Intel and AMD. Encoding on these chips took a median of `r encode_range(c("GPU: AMD", "GPU: Intel"))` ms, which is just on the edge of being able to encode in real-time with a 15fps camera. 
+
+There are two reasons that we are optimistic that real-time performance will be possible on many more machines soon. First, we have explored quantized versions of the model that take up ~25% of the memory that the floating point version requires. These deliver nearly identical prediction quality, but we haven't collected data with them on a wide variety of machines. Second, the availability of dedicated GPU hardware is becoming much more common in entry-level laptops, so we expect these estimates to become obsolete quickly as more participants get access to the kinds of devices that supported real-time tracking. 
+
 
 ```{r}
 #| label: fig-hardware
@@ -1469,45 +1487,6 @@ encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
   plot_layout(heights = c(1, 1.6)) +
   plot_annotation(tag_levels = "A")
 ```
-
-**Notes: hardware, how the encoder was chosen**
-
-- SaccadeJS encodes either on the GPU (WebGPU) or on the CPU.
-- At the start of each session, the experiment measured the camera's frame rate on the video itself and timed an inline encode (the median of 5–15).
-- Inline if the encode ≤ 85% of one camera frame, kept between 30 and 80 ms (≈ 57 ms at 15 fps, 28→30 ms at 30 fps). Without WebGPU, a flat 30 ms limit.
-- Otherwise deferred: frames go to a pool of background CPU workers (cores − 2, at most 4; fewer on ≤ 4 GB). They encode what they can, and the rest are encoded after the session.
-- Paths: `r path_value("inline on GPU", n)` inline; `r path_value("deferred: GPU too slow", n)` had WebGPU but too slow for their camera; `r path_value("deferred: no WebGPU", n)` without usable WebGPU (of `r nrow(runtime)`).
-
-**Notes: hardware, camera rate and encode cost**
-
-- Camera rate (measured at the start): median `r f0(value_of(camera_summary, median))` fps; `r f0(value_of(camera_summary, fast))`% ≥ 25 fps; `r f0(value_of(camera_summary, slow))`% < 20. Bimodal, near 15 and 30 (@fig-hardware A).
-- During the task, the experiment's recorder captured frames at a median of `r f0(value_of(camera_summary, recorded))` fps. Probably lower because it ran both trackers' preprocessing on every frame, which SaccadeJS alone wouldn't (interpretation, not tested).
-- Encode time per frame, median: GPU `r encode_median("GPU, any")` ms; CPU in the page `r encode_median("CPU, in the page")` ms; one CPU worker `r encode_median("CPU, one worker")` ms (@fig-hardware C).
-
-**Notes: hardware, GPU makers**
-
-- Two clusters by GPU maker, as WebGPU reports the adapter (@fig-hardware B, C):
-  - Apple Silicon median `r f0(gpu_value("Apple Silicon", median))` ms; NVIDIA `r f0(gpu_value("NVIDIA", median))` ms.
-  - Intel integrated: `r gpu_value("Intel", n)` of `r n_webgpu` WebGPU machines; median `r f0(gpu_value("Intel", median))` ms; only `r gpu_value("Intel", inline)` inline.
-  - AMD: median `r f0(gpu_value("AMD", median))` ms; `r gpu_value("AMD", inline)` of `r gpu_value("AMD", n)` inline. Probably mostly the integrated graphics in Ryzen laptop chips (GCN 5 / RDNA 2–3), but WebGPU doesn't say whether a GPU is integrated.
-- By architecture (hard-coded, one-off): Intel's slow machines are mostly Gen 9 (2015–2020) and Gen 12 (Iris Xe).
-- Caveat: browsers report only the adapter they use, so some dual-GPU laptops may have run on the integrated one.
-
-**Notes: hardware, the frame rate's effect**
-
-- A faster camera leaves less time per frame, so the camera decided the path as much as the GPU did.
-- Among WebGPU machines: inline for `r gpu_inline("slow")`% of those with cameras < 25 fps, vs `r gpu_inline("fast")`% at ≥ 25 fps.
-
-**Notes: hardware, live gaze rate**
-
-- Live tracking encodes the newest frame it can and skips the rest. A slow machine gives gaze less often, not less accurately: an embedding is the same whenever it's computed.
-- Live rate = SaccadeJS's own performance check at the start of the session, capped at the camera rate. One measurement, so later slowdowns are missed.
-- Inline: kept up (≥ 90% of the camera rate) for `r f0(path_value("inline on GPU", keep_up))`%; median `r f0(path_value("inline on GPU", live))` samples/s.
-- GPU too slow: median `r f0(path_value("deferred: GPU too slow", live))` samples/s from cameras at a median of `r f0(path_value("deferred: GPU too slow", camera))` fps.
-- No WebGPU: `r f0(path_value("deferred: no WebGPU", live))` from `r f0(path_value("deferred: no WebGPU", camera))`.
-- Deferred sessions (hard-coded, one-off): workers embedded a median of 31% of frames during the session (10th percentile 7%); 131 of 142 left frames unencoded when the session ended, saved as crops and embedded afterwards.
-- Interpretation: gaze-contingent studies need inline machines; dwell-type checks can run on most; offline analysis on any. @fig-hardware A.
-
 
 # Conclusion
 
