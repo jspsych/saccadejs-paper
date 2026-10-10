@@ -1377,9 +1377,9 @@ camera_summary <- runtime |>
 # CPU worker.
 ENCODE_PLACES <- c(paste("GPU:", GPU_MAKERS), "CPU, in the page", "CPU, one worker")
 encode_times <- bind_rows(
-  runtime |> filter(live_backend == "webgpu") |> transmute(place = paste("GPU:", gpu), ms = inline_ms),
-  runtime |> filter(live_backend == "wasm") |> transmute(place = "CPU, in the page", ms = inline_ms),
-  runtime |> filter(encoder == "deferred") |> transmute(place = "CPU, one worker", ms = worker_ms)
+  runtime |> filter(live_backend == "webgpu") |> transmute(place = paste("GPU:", gpu), ms = inline_ms, path),
+  runtime |> filter(live_backend == "wasm") |> transmute(place = "CPU, in the page", ms = inline_ms, path),
+  runtime |> filter(encoder == "deferred") |> transmute(place = "CPU, one worker", ms = worker_ms, path)
 ) |>
   filter(is.finite(ms)) |>
   mutate(place = factor(place, ENCODE_PLACES))
@@ -1397,9 +1397,6 @@ gpu_summary <- runtime |>
 gpu_value <- function(g, column) value_of(gpu_summary, {{ column }}, gpu == g)
 n_webgpu <- sum(gpu_summary$n)
 
-# The limit an encode on WebGPU had to fit to run inline: 85% of one camera frame, kept between
-# 30 and 80 ms (inlineLimitMs in the experiment's experiment.js). Without WebGPU it was 30 ms.
-inline_limit_ms <- function(fps) pmin(80, pmax(30, 0.85 * 1000 / fps))
 
 # Among machines with WebGPU, how often the encode fit, by the camera's speed at the start.
 gpu_by_camera <- runtime |>
@@ -1407,6 +1404,70 @@ gpu_by_camera <- runtime |>
   mutate(camera = if_else(camera_fps_start >= 25, "fast", "slow")) |>
   summarise(n = n(), inline = 100 * mean(encoder == "inline"), .by = camera)
 gpu_inline <- function(speed) f0(value_of(gpu_by_camera, inline, camera == speed))
+```
+
+```{r}
+#| label: fig-hardware
+#| fig-cap: "What participants' machines could do. (A) The share of participants whose camera delivered (shaded) and whose machine tracked gaze live (line) at least a given number of frames per second. (B) The path each machine's encoder took, by the GPU maker WebGPU reported; colors as in the legend above C. (C) The time one frame took to encode: on the GPU, by its maker; on the CPU in the page, for machines without WebGPU; and in one background CPU worker, for deferred machines. One dot per machine, colored by its path; black ticks mark each row's median. Dashed lines mark one camera frame at 30 and 15 fps."
+#| fig-width: 6.5
+#| fig-height: 3.6
+# (A) How much of the sample reaches each rate, in 2 fps steps: each step's height is the share of
+# participants at or above its lower edge, for the camera's own rate (shaded) and for the live gaze
+# rate SaccadeJS achieved (line). Cameras nominally at 30 fps measure just under it, so the last
+# step is 28 to 30.
+reach <- tibble(rate = seq(0, 28, by = 2)) |>
+  mutate(camera = map_dbl(rate, \(r) mean(runtime$camera_fps_start >= r, na.rm = TRUE)),
+         live = map_dbl(rate, \(r) mean(runtime$live >= r, na.rm = TRUE)))
+reach_plot <- ggplot(reach) +
+  geom_rect(aes(xmin = rate, xmax = rate + 2, ymin = 0, ymax = 100 * camera), fill = "#dcdbd5") +
+  geom_step(data = bind_rows(reach, mutate(slice_tail(reach, n = 1), rate = rate + 2)),
+            aes(rate, 100 * live), direction = "hv", color = INK, linewidth = 0.7) +
+  annotate("text", x = 23, y = 62, label = "Camera", size = 3, color = INK_2) +
+  annotate("text", x = 25, y = 30, label = "Live gaze", size = 3, color = INK) +
+  scale_x_continuous(breaks = seq(0, 30, by = 6)) +
+  coord_cartesian(xlim = c(0, 30), ylim = c(0, 100), expand = FALSE) +
+  labs(x = "Frames per second, at least", y = "Participants (%)")
+
+# (B) Each machine's path, by its GPU's maker; machines without usable WebGPU on their own row.
+path_rows <- runtime |>
+  mutate(row = if_else(path == "deferred: no WebGPU", "No WebGPU", as.character(gpu)),
+         row = factor(row, rev(c(GPU_MAKERS, "No WebGPU")))) |>
+  count(row, path) |>
+  mutate(share = n / sum(n), total = sum(n), .by = row)
+path_plot <- ggplot(path_rows, aes(100 * share, row, fill = path)) +
+  geom_col(width = 0.7) +
+  geom_text(data = distinct(path_rows, row, total), aes(x = 101, y = row, label = paste0("n = ", total)),
+            inherit.aes = FALSE, hjust = 0, size = 2.6, color = INK_2) +
+  scale_fill_manual(values = PATH_COLORS, guide = "none") +
+  scale_y_discrete(labels = capitalize_first) +
+  scale_x_continuous(breaks = c(0, 50, 100)) +
+  coord_cartesian(xlim = c(0, 118), expand = FALSE, clip = "off") +
+  theme(panel.grid.major.y = element_blank()) +
+  labs(x = "Machines (%)", y = NULL)
+
+# (C) The cost of one encode, wherever it ran, with each machine colored by the path it took.
+encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
+  geom_vline(xintercept = 1000 / c(30, 15), linetype = "dashed", color = INK_2, linewidth = 0.3) +
+  annotate("text", x = 1000 / c(30, 15), y = Inf, label = c("one frame at 30 fps", "at 15 fps"),
+           hjust = c(1.05, -0.05), vjust = 1.2, size = 2.4, color = INK_2) +
+  geom_point(aes(color = path), position = position_jitter(height = 0.15, width = 0, seed = 1),
+             size = 1.1, alpha = 0.7, stroke = 0) +
+  geom_errorbar(data = filter(encode_summary, place %in% ENCODE_PLACES),
+                aes(xmin = median, xmax = median, y = factor(place, rev(ENCODE_PLACES))),
+                inherit.aes = FALSE, width = 0.6, linewidth = 1.1, color = INK) +
+  scale_color_manual(values = PATH_COLORS, labels = capitalize_first, name = NULL) +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  # Room above the top row for the dashed lines' labels.
+  scale_y_discrete(expand = expansion(add = c(0.6, 1.3))) +
+  scale_x_log10(breaks = c(10, 20, 50, 100, 200, 500, 1000)) +
+  theme(panel.grid.major.x = element_blank(), legend.position = "top",
+        legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(2, "pt")) +
+  labs(x = "Time to encode one frame (ms, log scale)", y = NULL)
+
+# The paths' legend sits on C, the full-width panel; B's colors mean the same.
+(free(reach_plot) | path_plot) / encode_cost_plot +
+  plot_layout(heights = c(1, 1.15)) +
+  plot_annotation(tag_levels = "A")
 ```
 
 **Notes: hardware, how the encoder was chosen**
@@ -1419,48 +1480,22 @@ gpu_inline <- function(speed) f0(value_of(gpu_by_camera, inline, camera == speed
 
 **Notes: hardware, camera rate and encode cost**
 
-- Camera rate (measured at the start): median `r f0(value_of(camera_summary, median))` fps; `r f0(value_of(camera_summary, fast))`% ≥ 25 fps; `r f0(value_of(camera_summary, slow))`% < 20. Bimodal, near 15 and 30 (@fig-runtime-inputs, left).
+- Camera rate (measured at the start): median `r f0(value_of(camera_summary, median))` fps; `r f0(value_of(camera_summary, fast))`% ≥ 25 fps; `r f0(value_of(camera_summary, slow))`% < 20. Bimodal, near 15 and 30 (@fig-hardware A).
 - During the task, the experiment's recorder captured frames at a median of `r f0(value_of(camera_summary, recorded))` fps. Probably lower because it ran both trackers' preprocessing on every frame, which SaccadeJS alone wouldn't (interpretation, not tested).
-- Encode time per frame, median: GPU `r encode_median("GPU, any")` ms; CPU in the page `r encode_median("CPU, in the page")` ms; one CPU worker `r encode_median("CPU, one worker")` ms (@fig-runtime-inputs, right).
+- Encode time per frame, median: GPU `r encode_median("GPU, any")` ms; CPU in the page `r encode_median("CPU, in the page")` ms; one CPU worker `r encode_median("CPU, one worker")` ms (@fig-hardware C).
 
 **Notes: hardware, GPU makers**
 
-- Two clusters by GPU maker, as WebGPU reports the adapter:
+- Two clusters by GPU maker, as WebGPU reports the adapter (@fig-hardware B, C):
   - Apple Silicon median `r f0(gpu_value("Apple Silicon", median))` ms; NVIDIA `r f0(gpu_value("NVIDIA", median))` ms.
   - Intel integrated: `r gpu_value("Intel", n)` of `r n_webgpu` WebGPU machines; median `r f0(gpu_value("Intel", median))` ms; only `r gpu_value("Intel", inline)` inline.
   - AMD: median `r f0(gpu_value("AMD", median))` ms; `r gpu_value("AMD", inline)` of `r gpu_value("AMD", n)` inline. Probably mostly the integrated graphics in Ryzen laptop chips (GCN 5 / RDNA 2–3), but WebGPU doesn't say whether a GPU is integrated.
 - By architecture (hard-coded, one-off): Intel's slow machines are mostly Gen 9 (2015–2020) and Gen 12 (Iris Xe).
 - Caveat: browsers report only the adapter they use, so some dual-GPU laptops may have run on the integrated one.
 
-```{r}
-#| label: fig-runtime-inputs
-#| fig-cap: "What sets the time available to encode a frame. Left: each participant's camera frame rate, measured on the camera at the start of the session. Right: the time to encode one frame, on the GPU (by the GPU's maker, as WebGPU reports it), on the CPU in the page, and in one CPU worker (log scale); dashed lines mark one frame at 30 and at 15 frames per second. One dot per participant; ticks mark each row's median."
-#| fig-width: 6.5
-#| fig-height: 3.2
-camera_plot <- ggplot(runtime, aes(camera_fps_start)) +
-  geom_histogram(binwidth = 1, boundary = 0, fill = INK_2) +
-  theme(panel.grid.major.x = element_blank()) +
-  labs(x = "Camera frame rate (frames per second)", y = "Participants")
-encode_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
-  geom_vline(xintercept = 1000 / c(30, 15), linetype = "dashed", color = INK_2, linewidth = 0.3) +
-  annotate("text", x = 1000 / c(30, 15), y = Inf, label = c("one frame at 30 fps", "at 15 fps"),
-           hjust = c(1.05, -0.05), vjust = 1.2, size = 2.2, color = INK_2) +
-  geom_point(position = position_jitter(height = 0.15, width = 0, seed = 1), size = 1.1,
-             alpha = 0.6, stroke = 0, color = INK) +
-  # Each row's median, as a vertical tick.
-  geom_errorbar(data = filter(encode_summary, place %in% ENCODE_PLACES),
-                aes(xmin = median, xmax = median, y = factor(place, rev(ENCODE_PLACES))),
-                inherit.aes = FALSE, width = 0.6, linewidth = 1.2,
-                color = TRACKER_COLORS[["SaccadeJS"]]) +
-  scale_x_log10(breaks = c(10, 20, 50, 100, 200, 500, 1000)) +
-  theme(panel.grid.major.x = element_blank()) +
-  labs(x = "Time to encode one frame (ms, log scale)", y = NULL)
-camera_plot + encode_plot + plot_layout(widths = c(1, 1.4))
-```
-
 **Notes: hardware, the frame rate's effect**
 
-- A faster camera leaves less time per frame, so the camera decided the path as much as the GPU did (@fig-runtime, left; the curve is the inline limit).
+- A faster camera leaves less time per frame, so the camera decided the path as much as the GPU did.
 - Among WebGPU machines: inline for `r gpu_inline("slow")`% of those with cameras < 25 fps, vs `r gpu_inline("fast")`% at ≥ 25 fps.
 
 **Notes: hardware, live gaze rate**
@@ -1471,38 +1506,8 @@ camera_plot + encode_plot + plot_layout(widths = c(1, 1.4))
 - GPU too slow: median `r f0(path_value("deferred: GPU too slow", live))` samples/s from cameras at a median of `r f0(path_value("deferred: GPU too slow", camera))` fps.
 - No WebGPU: `r f0(path_value("deferred: no WebGPU", live))` from `r f0(path_value("deferred: no WebGPU", camera))`.
 - Deferred sessions (hard-coded, one-off): workers embedded a median of 31% of frames during the session (10th percentile 7%); 131 of 142 left frames unencoded when the session ended, saved as crops and embedded afterwards.
-- Interpretation: gaze-contingent studies need inline machines; dwell-type checks can run on most; offline analysis on any. @fig-runtime.
+- Interpretation: gaze-contingent studies need inline machines; dwell-type checks can run on most; offline analysis on any. @fig-hardware A.
 
-```{r}
-#| label: fig-runtime
-#| fig-cap: "Left: the time one encode took on the GPU against the camera's frame rate, for machines with WebGPU (log scale). The line is the most an encode could take and still run inline; machines above it were deferred to CPU workers. Right: the gaze samples per second SaccadeJS would deliver live against the camera's frame rate. On the diagonal, it kept up with the camera; the distance below it is the frames it had to skip."
-#| fig-width: 6.5
-#| fig-height: 3.4
-fps_range <- range(runtime$camera_fps_start, na.rm = TRUE)
-limit_curve <- tibble(fps = seq(fps_range[1], fps_range[2], length.out = 200),
-                      ms = inline_limit_ms(fps))
-decision_plot <- runtime |>
-  filter(live_backend == "webgpu", is.finite(camera_fps_start)) |>
-  ggplot(aes(camera_fps_start, inline_ms)) +
-  geom_line(data = limit_curve, aes(fps, ms), color = INK, linewidth = 0.6) +
-  # Keys for every group, even one with no points here, so both panels' legends match.
-  geom_point(aes(color = path), size = 1.2, alpha = 0.7, stroke = 0, show.legend = TRUE) +
-  scale_color_manual(values = PATH_COLORS, labels = capitalize_first, drop = FALSE) +
-  scale_y_log10(breaks = c(5, 10, 20, 50, 100, 200, 500)) +
-  labs(x = "Camera frame rate at the start", y = "Time to encode one frame\non the GPU (ms, log scale)")
-live_plot <- ggplot(runtime, aes(camera_fps_start, live)) +
-  geom_abline(slope = 1, intercept = 0, color = INK_2, linewidth = 0.4) +
-  # Keys for every group, even one with no points here, so both panels' legends match.
-  geom_point(aes(color = path), size = 1.2, alpha = 0.7, stroke = 0, show.legend = TRUE) +
-  scale_color_manual(values = PATH_COLORS, labels = capitalize_first, drop = FALSE) +
-  coord_cartesian(xlim = c(0, fps_range[2] + 1), ylim = c(0, fps_range[2] + 1), expand = FALSE) +
-  labs(x = "Camera frame rate at the start", y = "Gaze samples per second, live")
-# The two panels share their colors, so they share one legend, above both.
-decision_plot + live_plot +
-  plot_layout(guides = "collect") &
-  guides(color = guide_legend(nrow = 1, override.aes = list(size = 2.5, alpha = 1))) &
-  theme(legend.position = "top")
-```
 
 # Conclusion
 
