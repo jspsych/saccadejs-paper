@@ -52,6 +52,18 @@ jobs:
           path: data/saccadejs-eval
           key: zenodo-23213276-eval-a90fa7c46c9631cf28b4fd3f5ab29bc5
 
+      # knitr's chunk cache, so a push that leaves the replays' code and data alone skips them.
+      # The key changes with the paper and R code, so each such push saves a new cache; on a
+      # miss, restore-keys loads the latest one and knitr reruns only the chunks whose code or
+      # cache.extra changed. knitr doesn't track package versions: if an update changes results,
+      # delete the cache under the repo's Actions > Caches.
+      - name: Restore knitr cache
+        uses: actions/cache@v6
+        with:
+          path: paper_cache
+          key: knitr-${{ hashFiles('paper.qmd', 'R/**') }}
+          restore-keys: knitr-
+
       - name: Render PDF
         env:
           # Needed only while the Zenodo record is an unpublished draft.
