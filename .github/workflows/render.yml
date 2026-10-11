@@ -45,6 +45,13 @@ jobs:
           path: data/saccadejs-validation
           key: zenodo-23213276-6ecdcb53c34748d6ec53ecd27a2e2f3d
 
+      # The model evaluation dataset (~245 MB), a second file in the same record, cached the same way.
+      - name: Restore evaluation dataset from cache
+        uses: actions/cache@v6
+        with:
+          path: data/saccadejs-eval
+          key: zenodo-23213276-eval-a90fa7c46c9631cf28b4fd3f5ab29bc5
+
       - name: Render PDF
         env:
           # Needed only while the Zenodo record is an unpublished draft.

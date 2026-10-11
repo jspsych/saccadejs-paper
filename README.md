@@ -24,4 +24,16 @@ The results come from the validation study's dataset, published on Zenodo as rec
 
 While the Zenodo record is an unpublished draft, downloading needs the share link's token in `ZENODO_TOKEN`. The GitHub Action gets it from the repo secret of the same name. Once the record is published, no token is needed and the secret can be deleted.
 
-The GitHub Action renders from scratch on every push to `main`. It keeps the unpacked dataset in the Actions cache, so only the first run (or the first after a new upload) downloads it. If the archive on Zenodo changes, update `ZENODO_MD5` in `R/data.R` and the cache key in `.github/workflows/render.yml`.
+### Model evaluation dataset
+
+Section 4 uses a second dataset: the deployed model's per-frame embeddings of the held-out participants, `saccadejs-eval.tar` (about 245 MB). It is built by `analysis/build_paper_eval_dataset.py` in [jspsych/eye-tracking](https://github.com/jspsych/eye-tracking). `R/data.R` finds it in:
+
+1. the folder in the `SACCADEJS_EVAL_DATA` environment variable, if set;
+2. `../eye-tracking/data/saccadejs-eval`, the copy the eye-tracking repo keeps;
+3. `data/saccadejs-eval` in this repo, which it downloads from Zenodo (and checks against `EVAL_ZENODO_MD5`) if it isn't there.
+
+It is a second file in the same Zenodo record as the validation dataset, so the download uses the same `ZENODO_TOKEN` while the record is a draft.
+
+### The GitHub Action
+
+The GitHub Action renders from scratch on every push to `main`. It keeps both unpacked datasets in the Actions cache, so only the first run (or the first after a new upload) downloads them. If an archive on Zenodo changes, update its MD5 in `R/data.R` (`ZENODO_MD5` or `EVAL_ZENODO_MD5`) and its cache key in `.github/workflows/render.yml`.

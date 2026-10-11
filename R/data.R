@@ -1,4 +1,5 @@
-# Finding the validation-study dataset (Zenodo record 23213276).
+# Finding the validation-study dataset (Zenodo record 23213276) and, below, the model evaluation
+# dataset (the same record's second file).
 #
 # validation_data_dir() returns the folder holding participants.csv and sessions/, checking in
 # order:
@@ -27,22 +28,27 @@ validation_data_dir <- function() {
   if (is_dataset(sibling)) return(sibling)
 
   local <- file.path("data", DATASET_NAME)
-  if (!is_dataset(local)) download_validation_data("data")
+  if (!is_dataset(local)) {
+    download_zenodo_archive(ZENODO_RECORD, ZENODO_FILE, ZENODO_MD5, "data",
+                            token_var = "ZENODO_TOKEN", label = "the validation dataset (about 400 MB)")
+  }
   local
 }
 
-download_validation_data <- function(dest) {
-  token <- Sys.getenv("ZENODO_TOKEN")
+# Download a tar archive from a Zenodo record, check it against the record's MD5, and unpack it
+# into `dest`. While the record is an unpublished draft, the download needs the share link's
+# token, read from the environment variable `token_var`.
+download_zenodo_archive <- function(record, file, md5, dest, token_var, label) {
+  token <- Sys.getenv(token_var)
   url <- if (nzchar(token)) {
-    sprintf("https://zenodo.org/api/records/%s/draft/files/%s/content?token=%s",
-            ZENODO_RECORD, ZENODO_FILE, token)
+    sprintf("https://zenodo.org/api/records/%s/draft/files/%s/content?token=%s", record, file, token)
   } else {
-    sprintf("https://zenodo.org/records/%s/files/%s?download=1", ZENODO_RECORD, ZENODO_FILE)
+    sprintf("https://zenodo.org/records/%s/files/%s?download=1", record, file)
   }
 
   dir.create(dest, showWarnings = FALSE, recursive = TRUE)
-  archive <- file.path(dest, ZENODO_FILE)
-  message("Downloading the validation dataset from Zenodo (about 400 MB)...")
+  archive <- file.path(dest, file)
+  message("Downloading ", label, " from Zenodo...")
   old <- options(timeout = max(3600, getOption("timeout")))
   on.exit(options(old), add = TRUE)
   status <- tryCatch(
@@ -51,15 +57,16 @@ download_validation_data <- function(dest) {
   )
   if (status != 0) {
     unlink(archive)
-    stop("Downloading the dataset from Zenodo record ", ZENODO_RECORD, " failed.",
-         if (!nzchar(token)) " If the record is still an unpublished draft, set ZENODO_TOKEN to the share link's token.")
+    stop("Downloading ", file, " from Zenodo record ", record, " failed.",
+         if (!nzchar(token)) paste0(" If the record is still an unpublished draft, set ", token_var,
+                                    " to the share link's token."))
   }
 
-  md5 <- unname(tools::md5sum(archive))
-  if (!identical(md5, ZENODO_MD5)) {
+  got <- unname(tools::md5sum(archive))
+  if (!identical(got, md5)) {
     unlink(archive)
-    stop("The downloaded archive's MD5 (", md5, ") does not match the Zenodo record (",
-         ZENODO_MD5, "). If the record is still a draft, set ZENODO_TOKEN.")
+    stop("The downloaded archive's MD5 (", got, ") does not match the Zenodo record (", md5,
+         "). If the record is still a draft, set ", token_var, ".")
   }
   utils::untar(archive, exdir = dest)
   unlink(archive)
@@ -73,21 +80,32 @@ download_validation_data <- function(dest) {
 # checking in order:
 #   1. SACCADEJS_EVAL_DATA, if set;
 #   2. ../eye-tracking/data/saccadejs-eval, where the eye-tracking repo keeps its copy;
-#   3. data/saccadejs-eval in this repo.
-# It is not on Zenodo yet, so one of these has to exist.
+#   3. data/saccadejs-eval in this repo, downloading it from Zenodo first if it is missing.
+#
+# It is a second file in the validation dataset's Zenodo record, so the download uses the same
+# record and, while the record is a draft, the same ZENODO_TOKEN.
 
+EVAL_ZENODO_FILE <- "saccadejs-eval.tar"
+EVAL_ZENODO_MD5 <- "a90fa7c46c9631cf28b4fd3f5ab29bc5"
 EVAL_DATASET_NAME <- "saccadejs-eval"
 
 eval_data_dir <- function() {
   is_dataset <- function(dir) file.exists(file.path(dir, "participants.csv"))
+
   env <- Sys.getenv("SACCADEJS_EVAL_DATA")
-  candidates <- c(if (nzchar(env)) env,
-                  file.path("..", "eye-tracking", "data", EVAL_DATASET_NAME),
-                  file.path("data", EVAL_DATASET_NAME))
-  found <- Filter(is_dataset, candidates)
-  if (!length(found)) {
-    stop("No model evaluation dataset (", EVAL_DATASET_NAME, ") found. Set SACCADEJS_EVAL_DATA ",
-         "or put a copy at ../eye-tracking/data/", EVAL_DATASET_NAME, ".")
+  if (nzchar(env)) {
+    if (!is_dataset(env)) stop("SACCADEJS_EVAL_DATA is set but has no participants.csv: ", env)
+    return(env)
   }
-  found[[1]]
+
+  sibling <- file.path("..", "eye-tracking", "data", EVAL_DATASET_NAME)
+  if (is_dataset(sibling)) return(sibling)
+
+  local <- file.path("data", EVAL_DATASET_NAME)
+  if (!is_dataset(local)) {
+    download_zenodo_archive(ZENODO_RECORD, EVAL_ZENODO_FILE, EVAL_ZENODO_MD5, "data",
+                            token_var = "ZENODO_TOKEN",
+                            label = "the model evaluation dataset (about 245 MB)")
+  }
+  local
 }
