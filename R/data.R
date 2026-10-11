@@ -64,3 +64,30 @@ download_validation_data <- function(dest) {
   utils::untar(archive, exdir = dest)
   unlink(archive)
 }
+
+# Finding the model evaluation dataset: the deployed model's per-frame embeddings of the
+# held-out participants (eyedata24), built by analysis/build_paper_eval_dataset.py in
+# jspsych/eye-tracking.
+#
+# eval_data_dir() returns the folder holding participants.csv, trials.csv and participants/,
+# checking in order:
+#   1. SACCADEJS_EVAL_DATA, if set;
+#   2. ../eye-tracking/data/saccadejs-eval, where the eye-tracking repo keeps its copy;
+#   3. data/saccadejs-eval in this repo.
+# It is not on Zenodo yet, so one of these has to exist.
+
+EVAL_DATASET_NAME <- "saccadejs-eval"
+
+eval_data_dir <- function() {
+  is_dataset <- function(dir) file.exists(file.path(dir, "participants.csv"))
+  env <- Sys.getenv("SACCADEJS_EVAL_DATA")
+  candidates <- c(if (nzchar(env)) env,
+                  file.path("..", "eye-tracking", "data", EVAL_DATASET_NAME),
+                  file.path("data", EVAL_DATASET_NAME))
+  found <- Filter(is_dataset, candidates)
+  if (!length(found)) {
+    stop("No model evaluation dataset (", EVAL_DATASET_NAME, ") found. Set SACCADEJS_EVAL_DATA ",
+         "or put a copy at ../eye-tracking/data/", EVAL_DATASET_NAME, ".")
+  }
+  found[[1]]
+}
