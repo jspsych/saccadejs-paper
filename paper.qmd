@@ -10,7 +10,7 @@ author:
   - name: Colin Mikulski
     affiliations:
       - ref: "1"
-    orcid: "[ORCID]"
+    orcid: 0009-0004-7289-6763
   - name: Alex Teabo
     affiliations:
       - ref: "1"
