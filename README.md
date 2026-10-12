@@ -15,11 +15,16 @@ The PDF is written to `_output/paper.pdf`.
 ## TODO list
 - [ ] Section 1: Intro
   - [ ] Trim
-  - [ ] Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
   - [ ] Briefly describe caveats in saccadeJs at the end
   - [ ] Do the contributions (main point of paper) come too late + is too brief? Should we have a larger chunk before section 1.1 describing the dataset + the model?
 - [ ] Section 2: The SaccadeJS Dataset
-  
+  - [ ] Recreate this figure in R and link it ![144 calibration points](<figures/calibration-points.png>)
+
+## Questions & Suggestions
+- Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
+- Is EyeSeeVC different from the saccadeJS evaluation dataset (N=1,950)?
+- For the SaccadeJS Dataset Prolific task, in the attention check trials, is there a maximum time the participant can wait in responding to the red color change before which it counts as a failed trial?
+
 
 ## Data
 
