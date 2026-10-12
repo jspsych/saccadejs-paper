@@ -12,6 +12,10 @@ quarto render
 
 The PDF is written to `_output/paper.pdf`.
 
+## TODO list
+- [-] Trim intro
+  - Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
+
 ## Data
 
 The results come from the validation study's dataset, published on Zenodo as record [23213276](https://doi.org/10.5281/zenodo.23213276) (`saccadejs-validation.tar`, about 400 MB). It is built by `analysis/build_dataset.py` in [jspsych/eyetracking-cookoff-exp](https://github.com/jspsych/eyetracking-cookoff-exp).
