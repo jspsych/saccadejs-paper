@@ -13,8 +13,13 @@ quarto render
 The PDF is written to `_output/paper.pdf`.
 
 ## TODO list
-- [-] Trim intro
-  - Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
+- [ ] Section 1: Intro
+  - [ ] Trim
+  - [ ] Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
+  - [ ] Briefly describe caveats in saccadeJs at the end
+  - [ ] Do the contributions (main point of paper) come too late + is too brief? Should we have a larger chunk before section 1.1 describing the dataset + the model?
+- [ ] Section 2: The SaccadeJS Dataset
+  
 
 ## Data
 
