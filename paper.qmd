@@ -847,7 +847,7 @@ To facilitate use in the research community, we have developed a JavaScript libr
 
 - Refer reader to github and documentation for specifics of implementation, since future versions might change after publication.
 
-jsPsych ecosystem options. 
+
 
 - Including timing correction plugin. Describe system and basic validation LED study.
 
@@ -860,6 +860,21 @@ To solve this problem, we developed a timing calibration routine that measures t
 To validate this approach, we used a custom Arduino-based timing device that included a phototransistor to detect screen changes and an LED in view of the webcam that turned on within 1ms of the screen brightness changing. We first measured the camera lag using the time sync algorithm, and then confirmed that applying the measured value to the video of the LED resulted in alignment between the display clock and the LED turning on. [Do we need to report some data here??].
 
 In @sec-latency, we report further evidence that this works by measuring the timing of saccades with human participants.
+
+## Integration with jsPsych
+
+In addition to our general core library, we also have developed an integration with jsPsych. jsPsych is a framework for developing behavioral experiments that run in a web browser. It's modular design emphasizes plug-and-play functionality through plugins and extensions [@deleeuw2015; @deleeuw2023]. Plugins are experiment building blocks, enabling parameterized control over specific events. For example, we built a plugin that runs a calibration routine, allowing the researcher to customize the number and location of the calibration points, whether each point is shown for a fixed time or stays until the participant clicks it, how long the participant has to move their eyes to each point and how long frames are then captured there, the number of repetitions and whether their order is randomized, and whether the new points replace or add to an earlier calibration. Extensions support functionality that is persistent throughout an experiment, such as mouse tracking or eye tracking. We've developed five plugins and one extension as part of our SaccadeJS library (@tbl-jspsych).
+
+| Package | Type | What it does |
+|:----------------|:-----|:---------------------|
+| `@saccadejs/extension` | Extension | Records a gaze sample for every camera frame during a trial, along with the on-screen position of any elements the researcher names. |
+| `@saccadejs/plugin-preview` | Plugin | Starts the camera and downloads the model, then shows the participant their camera image and eye crop so they can position themselves, continuing only once a face is found. |
+| `@saccadejs/plugin-performance` | Plugin | Measures the tracker's effective frame rate on the participant's machine and can end the experiment for machines too slow for the study. |
+| `@saccadejs/plugin-time-sync` | Plugin | Measures the combined display and camera lag with the timing calibration routine (@sec-timing) and applies it to gaze timestamps. |
+| `@saccadejs/plugin-calibrate` | Plugin | Shows calibration targets, captures frames at each one and fits the calibration. |
+| `@saccadejs/plugin-validate` | Plugin | Shows a grid of targets and reports the error at each one, the share of gaze samples within a region around it, and the median error over the trial. |
+
+: The SaccadeJS packages for jsPsych. {#tbl-jspsych}
 
 # Validation Study {#sec-validation}
 
