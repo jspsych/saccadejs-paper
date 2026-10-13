@@ -163,7 +163,7 @@ Before completing the fixation task, we gave participants some instructions to t
 
 *Accessing.* Give clear instructions about how to access the dataset.
 
-# The SaccadeJS Gaze Model
+# The SaccadeJS Gaze Model {#sec-model}
 
 Our approach is to use weighted ridge regression to predict the gaze location for a set of unknown images given a set of calibration images that are labeled with their known gaze coordinates. This involves getting a set of features from each calibration image, $x$, and labels of the gaze coordinates for the image, $y$.  The model is fit to minimize the sum of squared residuals by adjusting the regression weights, $A$. In addition, ridge regression adds a regularization term which penalizes large large weight values. This reduces the likelihood of overfitting.
 
@@ -293,6 +293,8 @@ eval_replays <- eval_participants |>
   compact()
 eval_grids <- list_rbind(map(eval_replays, "grids"))
 eval_frames <- list_rbind(map(eval_replays, "frames"))
+eval_calibration <- list_rbind(map(eval_replays, "calibration"))
+eval_grid_positions <- list_rbind(map(eval_replays, "positions"))
 ```
 
 ```{r}
@@ -300,16 +302,11 @@ eval_frames <- list_rbind(map(eval_replays, "frames"))
 n_eval <- nrow(eval_participants)
 n_eval_no_face <- sum(eval_participants$n_frames_embedded == 0)
 n_eval_scored <- n_distinct(eval_frames$participant)
-n_eval_both <- eval_grids |>
-  filter(points == STANDARD_GRID, fit == "weighted") |>
-  count(participant) |>
-  filter(n == 2) |>
-  nrow()
 
-# The main result: the 25-point calibration, scored on the other phase. One median error per
-# participant, over both directions where both phases could be calibrated.
-eval_cross <- filter(eval_frames, !same_phase)
-eval_by_participant <- eval_cross |>
+# The main result, calibrating forward: the first phase's 25-point grid, scored on every frame of
+# the second phase. One median error per participant.
+eval_forward <- filter(eval_frames, calibration == "phase 1", phase == 2)
+eval_by_participant <- eval_forward |>
   summarise(error = median(error), dx = median(abs(dx)), dy = median(abs(dy)),
             .by = participant)
 eval_share_within <- function(limit) f0(100 * mean(eval_by_participant$error < limit))
@@ -320,74 +317,125 @@ eval_xy <- eval_by_participant |>
             p = wilcox.test(dy, dx, paired = TRUE, exact = FALSE)$p.value,
             dx = median(dx), dy = median(dy))
 
-# Calibration size: each participant's error with each grid, averaged over the directions it
-# could be calibrated in; paired comparisons use participants with every grid.
+# Calibration size: each participant's error with each of the first phase's grids, scored on the
+# second phase; paired comparisons use participants with every grid.
 eval_by_grid <- eval_grids |>
-  filter(fit == "weighted") |>
-  summarise(error = mean(error), .by = c(participant, points)) |>
-  filter(!is.na(error))
+  filter(fit == "weighted", !is.na(error)) |>
+  select(participant, grid, error)
 eval_all_grids <- eval_by_grid |>
-  pivot_wider(names_from = points, values_from = error, names_prefix = "g") |>
+  pivot_wider(names_from = grid, values_from = error, names_prefix = "g") |>
   drop_na()
-eval_grid_dist <- function(points) {
-  dist_text(filter(eval_by_grid, points == !!points, participant %in% eval_all_grids$participant)$error)
+eval_grid_dist <- function(grid) {
+  dist_text(filter(eval_by_grid, grid == as.character(!!grid),
+                   participant %in% eval_all_grids$participant)$error)
 }
 eval_grid_better <- function(a, b) sum(eval_all_grids[[paste0("g", b)]] < eval_all_grids[[paste0("g", a)]])
+eval_grid_median <- function(grid) f2(median(eval_all_grids[[paste0("g", grid)]]))
+# The inner 5 x 5 grid against the spread one, over the whole screen: how many participants it
+# raised error for, and a Wilcoxon signed-rank test.
+eval_inner_vs_spread <- list(
+  higher = sum(eval_all_grids$`g25 inner` > eval_all_grids$g25), n = nrow(eval_all_grids),
+  p = wilcox.test(eval_all_grids$`g25 inner`, eval_all_grids$g25, paired = TRUE, exact = FALSE)$p.value)
+# The cost-benefit of calibration points: each participant's drop in error from one grid to a
+# larger one, divided by the points added; the median participant, in percentage points per point.
+eval_grid_gain <- function(a, b) {
+  drop <- eval_all_grids[[paste0("g", a)]] - eval_all_grids[[paste0("g", b)]]
+  formatC(median(drop) / (b - a), digits = 2, format = "fg")
+}
+# What fewer points cost: how much higher each participant's error is with each grid in the
+# figure than with all 144 points, in percent of the screen diagonal; the spread across
+# participants at each grid.
+EVAL_SIZE_GRIDS <- c(3, 5, 9, 15, 25, 45, 144)
+eval_grid_cost <- map(EVAL_SIZE_GRIDS, \(n) {
+  extra <- eval_all_grids[[paste0("g", n)]] - eval_all_grids$g144
+  tibble(points = n, q10 = quantile(extra, 0.1), q25 = quantile(extra, 0.25), q50 = median(extra),
+         q75 = quantile(extra, 0.75), q90 = quantile(extra, 0.9))
+}) |>
+  list_rbind()
+# How long each point took in the task: the median time from one trial to the next within a block.
+eval_seconds_per_point <- eval_trials |>
+  arrange(participant, order) |>
+  mutate(gap = time_s - lag(time_s), .by = c(participant, block)) |>
+  pull(gap) |>
+  median(na.rm = TRUE)
+
+# Where the 25 points go: error by target position after the spread 5 x 5 grid and after the
+# same 25 points packed into the middle, both as a multiple of the participant's median error over
+# the screen with the spread grid, as in the error map; the median participant at each position.
+EVAL_LAYOUTS <- c(`25` = "5 × 5 spread", `25 inner` = "5 × 5 inner")
+eval_layout_position <- eval_grid_positions |>
+  filter(grid %in% names(EVAL_LAYOUTS), participant %in% eval_all_grids$participant) |>
+  mutate(relative = error / median(error[grid == "25"]), .by = participant) |>
+  summarise(relative = median(relative), .by = c(grid, tx, ty))
+# The median of those, inside the inner grid's span and on the lattice's outer ring.
+eval_layout_region <- function(grid, region) {
+  inner <- calibration_grid("25 inner")
+  d <- eval_layout_position |>
+    filter(grid == !!grid) |>
+    mutate(inside = between(tx, min(inner[, 1]), max(inner[, 1])) &
+                    between(ty, min(inner[, 2]), max(inner[, 2])),
+           edge = tx %in% range(LATTICE_X) | ty %in% range(LATTICE_Y))
+  f2(median(d$relative[d[[region]]]))
+}
 
 # Error by target position, as a multiple of each participant's median error over the screen;
 # the median participant at each position, and along the bottom row.
-eval_position <- eval_cross |>
+eval_position <- eval_forward |>
   summarise(error = median(error), .by = c(participant, tx, ty)) |>
   mutate(relative = error / median(error), .by = participant) |>
   summarise(relative = median(relative), .by = c(tx, ty))
 eval_bottom_row <- f2(median(filter(eval_position, ty == max(LATTICE_Y))$relative))
 eval_worst_position <- f2(max(eval_position$relative))
 
-# Time from calibration: each scored frame's trial, in minutes from the middle of the calibrating
-# phase, in one-minute bins; one median per participant and bin. Negative times are trials shown
-# before the calibration (the second phase calibrating, the first scored).
-eval_phase_mid <- eval_trials |>
-  mutate(phase = as.integer(sub("^[^_]+_([0-9])_.*", "\\1", trial))) |>
-  summarise(mid = median(time_s), start = min(time_s), end = max(time_s), .by = c(participant, phase))
-eval_phase_minutes <- f1(median((eval_phase_mid$end - eval_phase_mid$start) / 60))
-eval_by_minute <- eval_frames |>
-  left_join(select(eval_trials, participant, trial, time_s), by = c("participant", "trial")) |>
-  left_join(select(eval_phase_mid, participant, cal_phase = phase, cal_mid = mid),
-            by = c("participant", "cal_phase")) |>
-  mutate(minutes = floor((time_s - cal_mid) / 60) + 0.5) |>
-  summarise(error = median(error), .by = c(participant, minutes))
-eval_minute_summary <- eval_by_minute |>
-  summarise(n = n(), median = median(error), q25 = quantile(error, 0.25),
-            q75 = quantile(error, 0.75), .by = minutes) |>
-  filter(n >= 50) |>
-  arrange(minutes)
-eval_minute_dist <- function(m) dist_text(filter(eval_by_minute, minutes == m)$error)
-# Scored in the calibrating phase (away from its grid) against the other phase, paired.
-eval_drift <- eval_frames |>
-  summarise(error = median(error), .by = c(participant, same_phase)) |>
-  pivot_wider(names_from = same_phase, values_from = error, names_prefix = "same_") |>
-  drop_na()
-eval_drift_summary <- eval_drift |>
-  summarise(n = n(), worse = sum(same_FALSE > same_TRUE),
-            rise = 100 * (median(same_FALSE) / median(same_TRUE) - 1),
-            p = wilcox.test(same_FALSE, same_TRUE, paired = TRUE, exact = FALSE)$p.value)
+# Time since calibration, apart from the phase: each phase's own 25-point grid, and the first
+# phase's grid on the second phase, all scored on the positions outside the grid. One median
+# error per participant, calibration and phase.
+EVAL_CALIBRATIONS <- c("phase 1", "phase 2")
+eval_by_phase_long <- eval_frames |>
+  filter(!on_grid) |>
+  summarise(error = median(error), .by = c(participant, calibration, phase)) |>
+  mutate(calibration = factor(calibration, EVAL_CALIBRATIONS))
+# One median error per participant, calibration and phase, paired within participant.
+eval_by_phase <- eval_by_phase_long |>
+  pivot_wider(names_from = c(calibration, phase), values_from = error, names_sep = "_")
+eval_phase_dist <- function(calibration, phase) {
+  dist_text(eval_by_phase[[paste(calibration, phase, sep = "_")]])
+}
+# A paired comparison of two columns of eval_by_phase: how many participants the second was
+# higher for, the rise in the median, and a Wilcoxon signed-rank test.
+eval_phase_compare <- function(a, b) {
+  x <- eval_by_phase[[a]]
+  y <- eval_by_phase[[b]]
+  list(n = length(x), higher = sum(y > x), rise = f0(100 * (median(y) / median(x) - 1)),
+       p = wilcox.test(y, x, paired = TRUE, exact = FALSE)$p.value)
+}
+# Drift: the second phase's frames, calibrated minutes earlier (the first phase's grid) against
+# right before (its own grid). The same frames, so only the time since calibration differs.
+eval_drift <- eval_phase_compare("phase 2_2", "phase 1_2")
+# The same calibration on its own phase and on the next: drift and any change between phases.
+eval_drift_same_cal <- eval_phase_compare("phase 1_1", "phase 1_2")
+# Each phase calibrated on its own grid: whether the second phase is harder to track at all.
+eval_phase_own <- eval_phase_compare("phase 1_1", "phase 2_2")
+# Recalibrating: how much lower the second phase's median error is with its own grid than with the
+# first phase's, in percent.
+eval_recal_drop <- f0(100 * (1 - median(eval_by_phase$`phase 2_2`) / median(eval_by_phase$`phase 1_2`)))
 
 # Blinks and the model's calibration weight, on the main result's frames.
-eval_blink <- eval_cross |>
+eval_blink <- eval_forward |>
   filter(!is.na(blink)) |>
   summarise(error = median(error), .by = c(participant, blink)) |>
   pivot_wider(names_from = blink, values_from = error, names_prefix = "blink_") |>
   drop_na()
-eval_blink_share <- f1(100 * mean(eval_cross$blink, na.rm = TRUE))
-eval_weight_fifths <- eval_cross |>
+eval_blink_share <- f1(100 * mean(eval_forward$blink, na.rm = TRUE))
+eval_weight_fifths <- eval_forward |>
   mutate(fifth = ntile(weight, 5)) |>
   summarise(error = median(error), .by = c(participant, fifth)) |>
   summarise(error = median(error), .by = fifth) |>
   arrange(fifth)
 # The two variations on the 25-point fit, paired against the standard one.
 eval_fit <- eval_grids |>
-  filter(points == STANDARD_GRID) |>
-  summarise(error = mean(error), .by = c(participant, fit)) |>
+  filter(grid == as.character(STANDARD_GRID)) |>
+  select(participant, fit, error) |>
   pivot_wider(names_from = fit, values_from = error) |>
   drop_na()
 eval_fit_change <- function(variant) {
@@ -399,38 +447,64 @@ eval_fit_change <- function(variant) {
 eval_unweighted <- eval_fit_change("unweighted")
 eval_no_blinks <- eval_fit_change("no blinks")
 
-# Who is tracked well: each participant's conditions over every scored frame (each frame once),
-# against their median error. Head position and pose come from MediaPipe's landmarks: the head's
+# Who is tracked well: each participant's conditions over the main result's frames, against their
+# median error. Head position and pose come from MediaPipe's landmarks: the head's
 # movement is the SD of its position in the image, left-right, up-down, and toward and away from
 # the camera (the log interocular distance); turn and tilt count by their size.
-eval_conditions <- eval_frames |>
-  distinct(participant, trial, frame_index, .keep_all = TRUE) |>
+# Where the dataset has the head's yaw and pitch in degrees (its format 2), they replace the
+# landmark proxies for turn and pitch. The camera's frame rate is from the frames' times in each
+# trial's video, over consecutive frames. Some participants' videos carry an unreadable
+# timestamp after their first frame or so (stored as infinite); those gaps are left out, and a
+# participant with fewer than 50 readable gaps has no frame rate.
+eval_has_angles <- any(is.finite(eval_frames$yaw))
+eval_frame_rate <- eval_forward |>
+  arrange(participant, trial, frame_index) |>
+  mutate(gap = c(NA, diff(time_ms) / diff(frame_index)), .by = c(participant, trial)) |>
+  summarise(gaps = list(gap[is.finite(gap) & gap > 0]), .by = participant) |>
+  mutate(frame_rate = map_dbl(gaps, \(g) if (length(g) >= 50) 1000 / median(g) else NA_real_)) |>
+  select(participant, frame_rate)
+eval_conditions <- eval_forward |>
   summarise(
     movement_x = sd(head_x), movement_y = sd(head_y), movement_z = sd(log_iod),
     weight = median(weight), brightness = median(brightness), openness = median(openness),
     blink_rate = mean(blink, na.rm = TRUE), sharpness = median(sharpness),
-    nearness = median(log_iod), turn = abs(median(yaw_proxy)), tilt = abs(median(roll)),
-    pitch = median(nose_dy),
-    .by = participant)
+    nearness = median(log_iod),
+    turn = abs(median(if (eval_has_angles) yaw else yaw_proxy, na.rm = TRUE)),
+    tilt = abs(median(roll)), roll_sd = sd(roll),
+    # The proxy's sign has not been checked against tipping up and down; the angle's has.
+    pitch = median(if (eval_has_angles) pitch else nose_dy, na.rm = TRUE),
+    contrast = median(contrast), noise = median(noise, na.rm = TRUE),
+    brightness_difference = abs(mean(brightness_left) - mean(brightness_right)),
+    crop_width = median(crop_width),
+    .by = participant) |>
+  left_join(eval_frame_rate, by = "participant")
+# Named as in the validation study where the measure is the same, so the two figures' icons match.
 EVAL_COVARIATES <- c(
   weight = "model calibration weight",
-  movement_z = "head movement toward/away",
-  movement_x = "head movement left/right",
-  movement_y = "head movement up/down",
+  movement_z = "interocular distance SD",
+  movement_x = "head position SD, left–right",
+  movement_y = "head position SD, up–down",
   brightness = "eye brightness",
-  blink_rate = "share of frames blinking",
-  screen = "screen size (CSS pixels)",
-  openness = "eye openness",
-  sharpness = "eye image sharpness",
-  turn = "head turn (size)",
-  tilt = "head tilt (size)",
-  nearness = "nearness to camera",
-  pitch = "head pitch")
+  blink_rate = "blinks",
+  openness = "eye aspect ratio",
+  sharpness = "image sharpness",
+  turn = "head yaw",
+  tilt = "head roll",
+  roll_sd = "head roll SD",
+  nearness = "interocular distance",
+  pitch = "head pitch",
+  contrast = "eye contrast",
+  brightness_difference = "left–right brightness difference",
+  noise = "sensor noise",
+  crop_width = "eye crop width",
+  frame_rate = "camera frame rate")
 eval_people <- eval_by_participant |>
   left_join(eval_conditions, by = "participant") |>
-  left_join(eval_participants, by = "participant") |>
-  mutate(screen = sqrt(screen_width^2 + screen_height^2))
+  left_join(eval_participants, by = "participant")
+# Only the conditions the dataset has: contrast, the eyes' brightness, noise and the crop's size
+# are in its format 2 only.
 eval_cov_tests <- names(EVAL_COVARIATES) |>
+  keep(\(v) sum(is.finite(eval_people[[v]])) > 10) |>
   map(\(v) {
     test <- cor.test(eval_people[[v]], eval_people$error, method = "spearman", exact = FALSE)
     tibble(covariate = v, label = EVAL_COVARIATES[[v]], rho = unname(test$estimate), p = test$p.value)
@@ -439,6 +513,7 @@ eval_cov_tests <- names(EVAL_COVARIATES) |>
   mutate(p_holm = p.adjust(p, "holm"))
 eval_rho <- function(v) {
   d <- filter(eval_cov_tests, covariate == v)
+  if (!nrow(d)) return("(not in this version of the dataset)")
   sprintf("ρ = %+.2f%s", d$rho, if (d$p_holm < 0.05) "" else ", n.s.")
 }
 # Webcam type in the words the validation study uses.
@@ -455,37 +530,81 @@ eval_group_text <- function(column, value) {
 eval_group_p <- function(column) {
   wilcox.test(as.formula(paste("error ~", column)), data = eval_people, exact = FALSE)$p.value
 }
+# Within participants, frame by frame, as in the validation study's results: what changes from
+# moment to moment within a session, against each frame's error, on the main result's frames.
+# Drift from calibration compares each frame with the first phase's calibration frames: how far
+# the eyes' midpoint has moved in the image, in interocular distances; how much the interocular
+# distance has changed (moving nearer or farther); how much the head has turned, tipped and
+# tilted; how much the eye patch's brightness has changed; and the minutes since the last
+# calibration trial. Eye state and image: how open the less open eye is, whether it is blinking,
+# and the eye crop's sharpness. And the model's calibration weight for the frame.
+EVAL_WITHIN_GROUPS <- c(
+  "head shift" = "Drift from calibration", "interocular distance change" = "Drift from calibration",
+  "head yaw change" = "Drift from calibration", "head pitch change" = "Drift from calibration",
+  "head roll change" = "Drift from calibration", "time since calibration" = "Drift from calibration",
+  "eye brightness change" = "Drift from calibration",
+  "eye aspect ratio" = "Eye state and image", "blinks" = "Eye state and image",
+  "image sharpness" = "Eye state and image",
+  "model calibration weight" = "Model")
+eval_cal_end <- eval_calibration |>
+  select(participant, trial = trials) |>
+  unnest(trial) |>
+  inner_join(eval_trials, by = c("participant", "trial")) |>
+  summarise(cal_end = max(time_s), .by = participant)
+eval_frame_level <- eval_forward |>
+  left_join(select(eval_trials, participant, trial, time_s), by = c("participant", "trial")) |>
+  left_join(eval_calibration |> select(-trials) |> rename_with(\(n) paste0("cal_", n), -participant),
+            by = "participant") |>
+  left_join(eval_cal_end, by = "participant") |>
+  mutate(
+    `head shift` = sqrt((head_x - cal_head_x)^2 + (head_y - cal_head_y)^2) / exp(cal_log_iod),
+    `interocular distance change` = abs(exp(log_iod - cal_log_iod) - 1),
+    `head yaw change` = if (eval_has_angles) abs(yaw - cal_yaw) else abs(yaw_proxy - cal_yaw_proxy),
+    `head pitch change` = if (eval_has_angles) abs(pitch - cal_pitch) else abs(nose_dy - cal_nose_dy),
+    `head roll change` = abs(roll - cal_roll),
+    `time since calibration` = (time_s - cal_end) / 60,
+    `eye brightness change` = abs(brightness - cal_brightness),
+    `eye aspect ratio` = openness,
+    blinks = as.numeric(blink),
+    `image sharpness` = sharpness,
+    `model calibration weight` = weight) |>
+  select(participant, error, all_of(names(EVAL_WITHIN_GROUPS))) |>
+  pivot_longer(-c(participant, error), names_to = "covariate", values_to = "value") |>
+  filter(is.finite(value), is.finite(error))
+# One Spearman ρ per participant and predictor; none for a participant whose predictor did not
+# vary (no blinks, say).
+eval_within_rho <- eval_frame_level |>
+  summarise(rho = if (n() >= 10 && sd(value) > 0) cor(value, error, method = "spearman") else NA_real_,
+            .by = c(participant, covariate)) |>
+  filter(is.finite(rho))
+# Across participants: the median ρ, and whether it differs from zero (Wilcoxon signed-rank),
+# Holm-corrected over all the within-participant tests.
+eval_within_tests <- eval_within_rho |>
+  summarise(n = n(), median_rho = median(rho), p = wilcox.test(rho, exact = FALSE)$p.value,
+            .by = covariate) |>
+  mutate(p_holm = p.adjust(p, "holm"), group = EVAL_WITHIN_GROUPS[covariate])
+eval_frame_rho <- function(v) {
+  d <- filter(eval_within_tests, covariate == v)
+  sprintf("median ρ = %+.2f%s", d$median_rho, if (d$p_holm < 0.05) "" else ", n.s.")
+}
+eval_drift_rho_range <- eval_within_tests |>
+  filter(group == "Drift from calibration") |>
+  pull(median_rho) |>
+  range()
+
 # A p-value after "p" in the text: "< .001" or "= .023".
 p_text <- function(p) if (p < 0.001) "< .001" else paste("=", p_fmt(p))
 ```
 
-*Notes: method*
-
-- Held-out set: `r n_eval` participants never used in training (eyedata24). Model as it ships, version 1.0.0.
-- Task done twice, two phases a few minutes apart; all 144 positions in each phase; each phase about `r eval_phase_minutes` min.
-- Every frame embedded with the model; calibration replayed offline.
-- Calibration: SaccadeJS's per-frame ridge fit (same as the validation study), on a 25-point grid (5 × 5 of the 144 positions) in one phase. Every frame of each calibration video is a row, weighted by the model's calibration weight.
-- Scoring: every frame of every video in the other phase; both directions (phase 1 → 2 and 2 → 1). A participant's error is the median over their scored frames.
-- Unit: percent of the diagonal of the participant's own screen, as throughout the paper (conversion to mm and degrees in @sec-validation).
-- Exclusions: `r n_eval_no_face` with no frame in which a face was found; `r n_eval - n_eval_no_face - n_eval_scored` more with no phase where every grid position had a usable frame.
-- Left `r n_eval_scored` participants; `r n_eval_both` could be calibrated in both phases.
+We used the holdout evaluation data from `r n_eval` participants to measure model performance. Of these participants, `r n_eval_no_face` had no frames in which faces were detected and an additional `r n_eval - n_eval_no_face - n_eval_scored` did not have a usable frame in at least one of the grid positions in both phases of the experiment. This left us with `r n_eval_scored` participants as our evaluation set.
 
 ## Overall accuracy
 
-*Notes: overall accuracy*
-
-- Median participant's error: `r dist_text(eval_by_participant$error)`.
-- Below 5% for `r eval_share_within(5)`% of participants; below 10% for `r eval_share_within(10)`%.
-- Long tail (@fig-eval-accuracy A): worst tenth above `r eval_quantile(0.9)`%; worst twentieth above `r eval_quantile(0.95)`%.
-- Implication: expect a small share of much worse participants; check accuracy at known locations so they can be identified and excluded.
-
-- Vertical vs. horizontal: median participant `r f2(eval_xy$dy)`% vertical vs. `r f2(eval_xy$dx)`% horizontal (% of diagonal); vertical larger for `r eval_xy$more_vertical` of `r eval_xy$n` participants; Wilcoxon signed-rank *p* `r p_text(eval_xy$p)`. Not a reliable difference.
-- But screens are shorter than wide, so the same error is a larger share of height than of width: horizontally separated AOIs are easier to distinguish than vertically stacked ones.
-- By target position (@fig-eval-accuracy B): highest along the bottom edge (median participant `r eval_bottom_row`× their whole-screen error), worst in the bottom corners (up to `r eval_worst_position`×); lowest just above the middle.
+We began by assessing model accuracy using a typical calibration routine. We calibrated the model with 25 points, arranged in a 5x5 grid (@fig-eval-accuracy B), from the first phase of the test data, and then measured prediction error on all 144 points from the second phase. The median error was just above 5% of the screen diagonal, `r dist_text(eval_by_participant$error)` across participants, and `r eval_share_within(10)`% of participants had a median error below 10%. There was a long tail of poor performance (@fig-eval-accuracy A): the worst 10% participants had median errors above `r eval_quantile(0.9)`%. Performance was worst along the sides and bottom edge, and best in the top center region of the screen.
 
 ```{r}
 #| label: fig-eval-accuracy
-#| fig-cap: "Accuracy of the model on held-out participants after a 25-point calibration, scored on the other phase. (A) Each participant's median error; the line marks the median participant. (B) Error by target position, as a multiple of each participant's median error over the whole screen: the median across participants at each of the 144 positions. Green is better than the participant's average, purple worse. Crosses mark the 25 calibration positions."
+#| fig-cap: "Accuracy of the model on held-out participants after a 25-point calibration on the first phase, scored on the second. (A) Each participant's median error; the line marks the median participant. (B) Error by target position, as a multiple of each participant's median error over the whole screen: the median across participants at each of the 144 positions. Green is better than the participant's average, purple worse. Plus signs mark the 25 calibration positions."
 #| fig-width: 6.5
 #| fig-height: 2.8
 eval_hist <- ggplot(eval_by_participant, aes(error)) +
@@ -498,7 +617,7 @@ eval_hist <- ggplot(eval_by_participant, aes(error)) +
 eval_grid_points <- as_tibble(calibration_grid(STANDARD_GRID))
 eval_map <- ggplot(eval_position, aes(tx, ty, fill = relative)) +
   geom_tile() +
-  geom_point(data = eval_grid_points, aes(x, y), inherit.aes = FALSE, shape = 4, size = 1.2,
+  geom_point(data = eval_grid_points, aes(x, y), inherit.aes = FALSE, shape = 3, size = 1.2,
              color = INK_2) +
   # On a log scale, so the midpoint is log(1).
   scale_fill_gradient2(low = "#1b9e77", mid = "white", high = "#7570b3", midpoint = 0,
@@ -516,91 +635,138 @@ eval_map <- ggplot(eval_position, aes(tx, ty, fill = relative)) +
 
 ## Calibration
 
-*Notes: calibration*
+SaccadeJS's performance depends on calibration, and so we assessed overall accuracy using different kinds of calibration. One simple kind of variation is the number of calibration points. We tested performance on phase 2 points using seven different sets of calibration points during phase 1 (@fig-eval-calibration A): 3 points in a triangle (the two top corners and the bottom middle), 5 points (the four corners and the center), 9 points in a 3x3 grid, 15 points in a 5x3 grid, 25 points in a 5x5 grid, 45 points in a 9x5 grid, and all 144 points. Performance improved with the number of calibration points. Across the `r nrow(eval_all_grids)` participants with complete data for each calibration set, the median error improved from `r eval_grid_median(3)`% with 3 points to  `r eval_grid_median(144)`% with all 144. However, there are clearly diminishing returns with additional calibration points (@fig-eval-calibration B). With 15 calibration points, error is within 1% of the screen diagonal relative to using all 144. Calibrating with 15 points takes a little less than 30 seconds, while 144 takes around 4.5 minutes. 
 
-- Calibration size (@fig-eval-calibration A), `r nrow(eval_all_grids)` participants with every grid complete:
-    - 9 points (3 × 3): `r eval_grid_dist(9)`
-    - 25 points: `r eval_grid_dist(25)`
-    - all 144: `r eval_grid_dist(144)`
-- 9 → 25 points lowered error for `r eval_grid_better(9, 25)` of them; 25 → 144 for `r eval_grid_better(25, 144)`. Diminishing returns.
+Calibration drifts as participants make small movements. We compared accuracy on phase 2 points using the 25-point calibration grid from only phase 1 versus the calibration from phase 2. Calibrating with phase 2 points reduced error by `r eval_recal_drop`%, from a median of `r eval_phase_dist("phase 1", 2)` to `r eval_phase_dist("phase 2", 2)`, and lowered it for `r eval_drift$higher` of `r eval_drift$n` participants (Wilcoxon signed-rank *p* `r p_text(eval_drift$p)`; @fig-eval-calibration C). 
 
-- Time from calibration (@fig-eval-calibration B), from the middle of the calibrating phase:
-    - minute after: `r eval_minute_dist(0.5)`
-    - five to six minutes after: `r eval_minute_dist(5.5)`
-- Rise is roughly symmetric before and after calibration, so it is time between calibration and use, not fatigue late in the session.
-- Other phase vs. the calibrating phase's own off-grid trials: other phase worse for `r eval_drift_summary$worse` of `r eval_drift_summary$n` participants; median `r f0(eval_drift_summary$rise)`% higher.
-- Time since calibration matters at least as much as the number of points; recommend recalibrating regularly, as in the validation study (@sec-calibration).
-
-*Use spread out calibration / focus on calibrating areas of interest.* Depending on what we get, give results.
+We also assessed whether concentrating calibration in one region of the screen could be beneficial in cases where the stimuli will only appear in that region. For example, if a researcher is going to show stimuli in only the middle 50% of the screen, does it make sense to concentrate calibration in that area? We tested this by comparing a 5x5 calibration grid that is spread out versus a 5x5 grid that is concentrated in the middle of the screen, spanning 29–71% of its width and 27.5–72.5% of its height (@fig-eval-calibration D). While overall error went up with the concentrated grid (median `r eval_grid_median("25 inner")`% versus `r eval_grid_median(25)`%; higher for `r eval_inner_vs_spread$higher` of `r eval_inner_vs_spread$n` participants), the relative error in the central region of the screen went down: within the area the concentrated grid covers, error was `r eval_layout_region("25 inner", "inside")`× each participant's overall error with the spread grid, compared with `r eval_layout_region("25", "inside")`× with the spread grid itself. The tradeoff was on the edges of the screen, where error rose to `r eval_layout_region("25 inner", "edge")`×, compared with `r eval_layout_region("25", "edge")`×. 
 
 ```{r}
 #| label: fig-eval-calibration
-#| fig-cap: "Calibration and accuracy on held-out participants. (A) Median error by calibration grid, from a 3 × 3 grid to all 144 positions, for participants for whom every grid was complete; violins show the distribution of participants' median error, and points mark the median participant. (B) Median error by the time between a trial and the middle of the calibrating phase, after a 25-point calibration, in one-minute bins; negative times are trials shown before the calibration. The line is the median participant; the band spans the middle half of participants. Bins with fewer than 50 participants are not shown."
+#| fig-cap: "Calibration and accuracy on held-out participants. (A) Median error by the first phase's calibration grid, from a triangle of three points to all 144 positions, scored on the second phase, for participants for whom every grid was complete; one dot per participant, and ticks mark each grid's median. The icons show where each grid's points are on the screen. (B) What fewer points cost: how much higher each participant's median error is with each grid in A than with all 144 points, in percent of the screen diagonal, against the number of points from 3 to 45 (with 144 points, this is zero by definition). The line and dots are the median participant, and the bands span the middle half (dark) and middle 80% (light) of participants. The top axis gives the calibration time at this task's pace of about one point every 2 s. (C) Time since calibration: each participant's median error on the positions outside the 25-point grid, for each phase calibrated on its own grid (light blue) and for the second phase calibrated on the first phase's grid, minutes earlier (dark blue); every calibration has the same 25 points. Ticks mark each group's median. (D) Error by target position after calibrating on 25 points spread over the screen (the standard grid) or packed into its middle, for the same participants as in A: each as a multiple of the participant's median error over the screen with the spread grid, the median across participants at each of the 144 positions. Green is better than that, purple worse. Plus signs mark each layout's calibration positions."
 #| fig-width: 6.5
-#| fig-height: 3
+#| fig-height: 5.8
+# Under each grid, an icon of where its points are on the screen.
+eval_grid_names <- setdiff(names(CALIBRATION_GRIDS), "25 inner")
 eval_grid_plot <- eval_by_grid |>
-  filter(participant %in% eval_all_grids$participant) |>
-  mutate(points = factor(points, levels = names(CALIBRATION_GRIDS))) |>
-  ggplot(aes(points, error)) +
-  geom_violin(fill = TRACKER_COLORS[["SaccadeJS"]], alpha = 0.25, color = NA, scale = "width") +
-  stat_summary(fun = median, geom = "line", aes(group = 1), color = TRACKER_COLORS[["SaccadeJS"]]) +
-  stat_summary(fun = median, geom = "point", color = TRACKER_COLORS[["SaccadeJS"]], size = 1.6) +
+  filter(participant %in% eval_all_grids$participant, grid %in% eval_grid_names) |>
+  mutate(grid = factor(grid, levels = eval_grid_names)) |>
+  ggplot(aes(grid, error)) +
+  geom_point(position = position_jitter(width = 0.2, height = 0, seed = 1), size = 0.6, alpha = 0.5,
+             color = TRACKER_COLORS[["SaccadeJS"]]) +
+  stat_summary(fun = median, fun.min = median, fun.max = median, geom = "errorbar",
+               width = 0.5, color = INK, linewidth = 0.5) +
   scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50), labels = \(x) paste0(x, "%")) +
-  labs(x = "Calibration points", y = "Median error (log scale)")
+  # The same x range as the icons below, whatever the jitter's spread.
+  coord_cartesian(xlim = c(1, length(eval_grid_names))) +
+  labs(x = NULL, y = "Median error (log scale)") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        plot.margin = margin(5.5, 5.5, 0, 5.5))
+eval_grid_icons <- grid_icon_strip(map(eval_grid_names, calibration_grid), labels = eval_grid_names) +
+  labs(x = "Calibration points") +
+  theme(plot.margin = margin(2, 5.5, 5.5, 5.5))
 
-eval_minute_plot <- ggplot(eval_minute_summary, aes(minutes, median)) +
-  geom_ribbon(aes(ymin = q25, ymax = q75), fill = TRACKER_COLORS[["SaccadeJS"]], alpha = 0.2) +
-  geom_line(color = TRACKER_COLORS[["SaccadeJS"]]) +
-  geom_point(color = TRACKER_COLORS[["SaccadeJS"]], size = 1.2) +
-  geom_vline(xintercept = 0, color = INK_2, linewidth = 0.3, linetype = "dashed") +
-  scale_y_continuous(labels = \(x) paste0(x, "%"), limits = c(0, NA)) +
-  labs(x = "Minutes from calibration", y = "Median error")
+# (B) What fewer points cost, against the number of points on a linear scale, so the cost in
+# calibration time reads directly: the median participant (line and dots, at the grids in A) and
+# the middle half and middle 80% of participants (bands). Time is on the top axis. The 144-point
+# grid is the reference, zero by definition, so the axis stops short of it, where the choice is.
+eval_cost_plot <- ggplot(filter(eval_grid_cost, points < 144), aes(points)) +
+  geom_hline(yintercept = 0, color = INK_2, linewidth = 0.3) +
+  geom_ribbon(aes(ymin = q10, ymax = q90), alpha = 0.12, fill = TRACKER_COLORS[["SaccadeJS"]]) +
+  geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = TRACKER_COLORS[["SaccadeJS"]]) +
+  geom_line(aes(y = q50), linewidth = 1, color = TRACKER_COLORS[["SaccadeJS"]]) +
+  geom_point(aes(y = q50), size = 1.4, color = TRACKER_COLORS[["SaccadeJS"]]) +
+  scale_x_continuous(breaks = c(3, 9, 15, 25, 45), minor_breaks = NULL,
+                     sec.axis = sec_axis(~ . * eval_seconds_per_point, name = "Calibration time (s)",
+                                         breaks = seq(0, 90, 15))) +
+  scale_y_continuous(labels = \(x) paste0(ifelse(x > 0, "+", ifelse(x < 0, "−", "")), abs(x), "%")) +
+  coord_cartesian(xlim = c(0, 48), ylim = c(min(eval_grid_cost$q10) - 0.2, NA), expand = FALSE) +
+  labs(x = "Calibration points",
+       y = "Extra error vs. 144 points\n(% of screen diagonal)")
 
-(eval_grid_plot | eval_minute_plot) + plot_annotation(tag_levels = "A")
+# (C) Time since calibration: each phase calibrated on its own grid, and the second phase on the
+# first phase's grid. One dot per participant, a tick at each group's median; the calibration
+# minutes earlier in dark blue, the ones right before in light blue.
+EVAL_DRIFT_GROUPS <- c(`phase 1_1` = "1 → 1", `phase 2_2` = "2 → 2", `phase 1_2` = "1 → 2")
+EVAL_DRIFT_COLORS <- c(same = "#7fb2ee", earlier = "#174a8b")
+EVAL_DRIFT_LABELS <- c(same = "Same phase", earlier = "Phase before")
+eval_phase_data <- eval_by_phase_long |>
+  mutate(group = paste(calibration, phase, sep = "_")) |>
+  filter(group %in% names(EVAL_DRIFT_GROUPS)) |>
+  mutate(when = if_else(group == "phase 1_2", "earlier", "same"),
+         group = factor(EVAL_DRIFT_GROUPS[group], EVAL_DRIFT_GROUPS))
+eval_phase_plot <- ggplot(eval_phase_data, aes(group, error, color = when)) +
+  geom_point(position = position_jitter(width = 0.2, height = 0, seed = 1), size = 0.6, alpha = 0.6) +
+  stat_summary(aes(group = group), fun = median, fun.min = median, fun.max = median,
+               geom = "errorbar", width = 0.5, color = INK, linewidth = 0.5) +
+  scale_color_manual(values = EVAL_DRIFT_COLORS, labels = EVAL_DRIFT_LABELS, breaks = names(EVAL_DRIFT_LABELS),
+                     name = "Calibrated on:") +
+  guides(color = guide_legend(override.aes = list(size = 1.6, alpha = 1))) +
+  scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50), labels = \(x) paste0(x, "%")) +
+  labs(x = "Phase calibrated → phase scored", y = "Median error (log scale)") +
+  theme(legend.position = "bottom", legend.margin = margin(0, 0, 0, 0),
+        legend.box.spacing = unit(2, "pt"), legend.key.spacing.x = unit(0.1, "cm"))
+
+# (D) The two 25-point layouts' error maps, on the error map's scale, with their calibration
+# points.
+eval_layout_points <- imap(EVAL_LAYOUTS, \(label, g) as_tibble(calibration_grid(g)) |> mutate(grid = g)) |>
+  list_rbind() |>
+  mutate(grid = factor(EVAL_LAYOUTS[grid], EVAL_LAYOUTS))
+eval_layout_map <- eval_layout_position |>
+  mutate(grid = factor(EVAL_LAYOUTS[grid], EVAL_LAYOUTS)) |>
+  ggplot(aes(tx, ty, fill = relative)) +
+  geom_tile() +
+  geom_point(data = eval_layout_points, aes(x, y), inherit.aes = FALSE, shape = 3, size = 1.2,
+             color = INK_2) +
+  facet_wrap(~grid) +
+  # On a log scale, so the midpoint is log(1).
+  scale_fill_gradient2(low = "#1b9e77", mid = "white", high = "#7570b3", midpoint = 0,
+                       trans = "log", breaks = c(0.8, 1, 1.25, 1.6, 2, 2.5),
+                       labels = \(x) paste0(x, "×"), name = NULL) +
+  scale_y_reverse(breaks = NULL) +
+  scale_x_continuous(breaks = NULL) +
+  coord_fixed(ratio = 9 / 16) +
+  labs(x = "Target x (left to right)", y = "Target y (top to bottom)") +
+  theme(legend.position = "bottom", legend.key.width = unit(1, "cm"),
+        legend.key.height = unit(0.2, "cm"), legend.margin = margin(0, 0, 0, 0),
+        legend.box.spacing = unit(2, "pt"),
+        strip.text = element_text(hjust = 0))
+
+((eval_grid_plot / eval_grid_icons + plot_layout(heights = c(1, 0.13))) | eval_cost_plot) /
+  ((eval_phase_plot | eval_layout_map) + plot_layout(widths = c(1, 2.4))) +
+  plot_layout(heights = c(1, 0.5)) +
+  plot_annotation(tag_levels = list(c("A", "", "B", "C", "D")))
 ```
 
-## Blinks and the calibration weight
+## What features predict model accuracy?
 
-*Notes: blinks and the calibration weight*
+We measured a variety of image and pose features to examine how they correlate with model accuracy. Some of these we measured at the participant level (@fig-eval-covariates A). For example, the standard deviation of the distance between the eyes over the course of the entire session correlates positively with model error (`r eval_rho("movement_z")`). Changes in interocular distance are caused by moving closer to and further from the camera, and the model's accuracy drops when participants move like this. Of the `r nrow(eval_cov_tests)` participant-level predictors, `r sum(eval_cov_tests$p_holm < 0.05)` were significantly correlated with model error after Holm correction. The strongest predictor was the model's own estimate of calibration quality. Recall from @sec-model that the model outputs a weight from 0 to 1 that is used to weight calibration points. These weights can also be computed for every prediction, and the median of these values over a session is a good predictor of the model's accuracy (`r eval_rho("weight")`). We also asked participants whether they were wearing glasses, and participants without glasses had significantly lower error (median `r eval_group_text("glasses", "no")`, against `r eval_group_text("glasses", "yes")` with glasses; Wilcoxon rank-sum *p* `r p_text(eval_group_p("glasses"))`; @fig-eval-covariates B).
 
-- Blinks: `r eval_blink_share`% of frames. Median participant's error on blink frames `r f2(median(eval_blink$blink_TRUE))`% vs. `r f2(median(eval_blink$blink_FALSE))`% on other frames.
-- Leaving blinks out of calibration: `r eval_no_blinks$direction` error by `r eval_no_blinks$mean` points on average; lowered it for `r eval_no_blinks$better` of `r eval_no_blinks$n`; Wilcoxon signed-rank *p* `r p_text(eval_no_blinks$p)`. No benefit.
-- Calibration weight tracks frame quality: lowest fifth of weight, median error `r f2(eval_weight_fifths$error[1])`%; highest fifth, `r f2(eval_weight_fifths$error[5])`%.
-- Fitting without the weights: `r eval_unweighted$direction` error by `r eval_unweighted$mean` points on average; lowered it for only `r eval_unweighted$better` of `r eval_unweighted$n`; *p* `r p_text(eval_unweighted$p)`. Small but reliable benefit of the weights.
-- The weight is computed per frame in real time, so researchers could use it to flag poor moments.
+We also measured features at the individual image level. One class of these features are how different they are from calibration images. We found that changes in head pose and brightness after calibration were all positively correlated with model error (@fig-eval-within; median ρ from `r f2(eval_drift_rho_range[1])` to `r f2(eval_drift_rho_range[2])`). Another class of features is momentary changes in eye state. Blinks are, as expected, positively correlated with error (`r eval_frame_rho("blinks")`). Eye aspect ratio, which measures how open the eye is, is also correlated with error; when the eyes are more open accuracy improves (`r eval_frame_rho("eye aspect ratio")`). Finally, the model's calibration weight for an individual image is correlated with accuracy on that image (`r eval_frame_rho("model calibration weight")`). This suggests that this model-derived metric can be used to identify moments during an experiment in which eye tracking quality changes.
 
-- How about removed from training?
-
-## Who is tracked well?
-
-*Notes: who is tracked well*
-
-- Spearman correlations of participant conditions with median error, Holm-corrected (@fig-eval-covariates A).
-- Model calibration weight strongest: `r eval_rho("weight")`.
-- Head movement next (SD of head position in the image): toward/away `r eval_rho("movement_z")`; left/right `r eval_rho("movement_x")`; up/down `r eval_rho("movement_y")`.
-- Eye brightness `r eval_rho("brightness")`; eye openness `r eval_rho("openness")`; share of frames blinking `r eval_rho("blink_rate")`; sharpness `r eval_rho("sharpness")`; head turned away from camera (size) `r eval_rho("turn")`.
-- Not predictive: nearness to camera `r eval_rho("nearness")`; head tilt `r eval_rho("tilt")`; head pitch `r eval_rho("pitch")`
-- Larger screens (CSS pixels): smaller error as a share of the diagonal, `r eval_rho("screen")`.
-
-- Glasses (@fig-eval-covariates B): `r eval_group_text("glasses", "yes")` vs. no glasses `r eval_group_text("glasses", "no")`; Wilcoxon *p* `r p_text(eval_group_p("glasses"))`.
-- Webcam: built-in `r eval_group_text("webcam", "integrated")` vs. separate `r eval_group_text("webcam", "external")`; *p* `r p_text(eval_group_p("webcam"))`. No reliable difference.
-- Possible participant instructions: sit still; light the face well from the front; take off glasses if they can see the screen without them.
 
 ```{r}
 #| label: fig-eval-covariates
-#| fig-cap: !expr sprintf("Who is tracked well. (A) Spearman correlations across %d held-out participants between each condition, over the frames scored, and median error, strongest first. A negative ρ means participants with more of the condition were tracked more accurately. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. Head movement is the SD of the head's position in the camera image; nearness is the interocular distance; turn and tilt count by their size, whichever way the head turned. (B) Each participant's median error by whether they wore glasses and whether their webcam was built in or separate, as they reported; ticks mark each group's median.", n_eval_scored, nrow(eval_cov_tests))
+#| fig-cap: !expr sprintf("Who is tracked well. (A) Spearman correlations across %d held-out participants between each condition, over the frames scored, and median error, strongest first. A negative ρ means participants with more of the condition were tracked more accurately. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. The icons sketch a low (left) and a high (right) value of each condition. The SDs are over the session, of the head's position in the camera image (toward and away from the camera, as the interocular distance SD, left–right and up–down) and of its roll. Head yaw and roll are sizes, whichever way the head turned or tilted. The camera's frame rate is from the frames' times in each trial's video, where they were readable (%d participants). (B) Each participant's median error by whether they wore glasses and whether their webcam was built in or separate, as they reported; ticks mark each group's median.", n_eval_scored, nrow(eval_cov_tests), sum(is.finite(eval_people$frame_rate)))
 #| fig-width: 6.5
-#| fig-height: 3.6
+#| fig-height: 7.2
+# Strongest correlation at the top. Row numbers count up from the bottom, as the icon panel expects.
+eval_cov_order <- eval_cov_tests |> arrange(desc(abs(rho))) |> pull(label)
+eval_cov_rows <- set_names(rev(seq_along(eval_cov_order)), eval_cov_order)
+eval_rho_limit <- max(0.5, ceiling(10 * max(abs(eval_cov_tests$rho))) / 10)
 eval_cov_plot <- eval_cov_tests |>
-  mutate(label = fct_reorder(label, abs(rho)), significant = p_holm < 0.05) |>
-  ggplot(aes(rho, label)) +
-  geom_vline(xintercept = 0, color = INK_2, linewidth = 0.3) +
-  geom_segment(aes(x = 0, xend = rho, yend = label), color = TRACKER_COLORS[["SaccadeJS"]],
-               linewidth = 0.4) +
-  geom_point(aes(fill = significant), shape = 21, size = 2, color = TRACKER_COLORS[["SaccadeJS"]]) +
+  mutate(row = eval_cov_rows[label], significant = p_holm < 0.05) |>
+  ggplot(aes(rho, row)) +
+  geom_vline(xintercept = 0, color = INK_2, linewidth = 0.4) +
+  geom_point(aes(fill = significant), shape = 21, size = 2.3, stroke = 0.8,
+             color = TRACKER_COLORS[["SaccadeJS"]]) +
   scale_fill_manual(values = c(`TRUE` = TRACKER_COLORS[["SaccadeJS"]], `FALSE` = "white"),
                     guide = "none") +
-  labs(x = "Spearman ρ with median error", y = NULL)
+  scale_y_continuous(breaks = eval_cov_rows, labels = capitalize_first(names(eval_cov_rows)),
+                     limits = c(0.5, length(eval_cov_rows) + 0.5), expand = c(0, 0)) +
+  scale_x_continuous(limits = c(-1, 1) * eval_rho_limit, breaks = seq(-0.4, 0.4, by = 0.2)) +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(x = "Spearman's ρ with median error", y = NULL)
 
 eval_groups <- bind_rows(
   transmute(eval_people, factor = "Glasses", group = glasses, error),
@@ -615,8 +781,59 @@ eval_group_plot <- ggplot(eval_groups, aes(label, error)) +
   scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50), labels = \(x) paste0(x, "%")) +
   labs(x = NULL, y = "Median error (log scale)")
 
-(eval_cov_plot | eval_group_plot) + plot_layout(widths = c(1.4, 1)) +
-  plot_annotation(tag_levels = "A")
+# The icons and correlations on top, the groups below; the tags are added by hand, since the icon
+# panel is not a panel of its own.
+(icon_panel(names(eval_cov_rows), eval_cov_rows) + labs(tag = "A") + eval_cov_plot +
+   plot_layout(widths = c(1.2, 2))) /
+  (eval_group_plot + labs(tag = "B")) +
+  plot_layout(heights = c(2.4, 1))
+
+```{r}
+#| label: fig-eval-within
+#| fig-cap: "Within held-out participants: each participant's Spearman correlation between a predictor on each frame and that frame's error, on the frames of the second phase after calibrating on the first. One dot per participant; ticks mark the median participant, solid where the median differs from zero (Wilcoxon signed-rank, Holm-corrected over all tests) and dashed where it does not. Drift is measured from the participant's own calibration frames. The icons sketch a low (left) and a high (right) value of each predictor; in the drift icons, the dashed outline is where the head was during calibration."
+#| fig-width: 6.5
+#| fig-height: 5
+# Rows grouped, each group under a heading, as in the validation study's figure; within a group,
+# strongest first. Row numbers count up from the bottom, as the icon panel expects.
+eval_within_layout <- eval_within_tests |>
+  mutate(group = factor(group, unique(EVAL_WITHIN_GROUPS))) |>
+  arrange(group, desc(abs(median_rho))) |>
+  select(group, covariate) |>
+  group_by(group) |>
+  group_modify(\(d, key) bind_rows(tibble(covariate = NA_character_, heading = TRUE),
+                                    mutate(d, heading = FALSE))) |>
+  ungroup() |>
+  mutate(row = rev(seq_len(n())))
+eval_predictor_rows <- eval_within_layout |> filter(!heading)
+eval_heading_rows <- eval_within_layout |> filter(heading)
+eval_within_rows <- set_names(eval_predictor_rows$row, eval_predictor_rows$covariate)
+
+eval_within_points <- mutate(eval_within_rho, row = eval_within_rows[covariate])
+eval_within_medians <- eval_within_tests |>
+  mutate(row = eval_within_rows[covariate],
+         significant = if_else(p_holm < 0.05, "significant", "not significant"))
+eval_within_limit <- quantile(abs(eval_within_points$rho), 0.995, names = FALSE) * 1.05
+eval_within_plot <- ggplot(eval_within_points, aes(rho, row)) +
+  geom_vline(xintercept = 0, color = INK_2, linewidth = 0.4) +
+  geom_point(position = position_jitter(height = 0.15, width = 0, seed = 1), size = 0.55,
+             alpha = 0.45, stroke = 0, color = TRACKER_COLORS[["SaccadeJS"]]) +
+  geom_segment(data = eval_within_medians,
+               aes(x = median_rho, xend = median_rho, y = row - 0.25, yend = row + 0.25,
+                   linetype = significant),
+               color = INK, linewidth = 0.9) +
+  # Group headings, in the rows left free for them.
+  annotate("text", x = -eval_within_limit, y = eval_heading_rows$row,
+           label = as.character(eval_heading_rows$group), hjust = 0, fontface = "bold", size = 3) +
+  scale_linetype_manual(values = c("significant" = "solid", "not significant" = "22"),
+                        guide = "none") +
+  scale_y_continuous(breaks = eval_within_rows, labels = capitalize_first(names(eval_within_rows)),
+                     limits = c(0.5, nrow(eval_within_layout) + 0.5), expand = c(0, 0)) +
+  scale_x_continuous(limits = c(-1, 1) * eval_within_limit) +
+  theme(panel.grid.major.x = element_blank(), panel.grid.major.y = element_line(linewidth = 0.25)) +
+  labs(x = "Spearman's ρ with per-frame error, one dot per participant", y = NULL)
+
+icon_panel(names(eval_within_rows), eval_within_rows, n_rows = nrow(eval_within_layout)) +
+  eval_within_plot + plot_layout(widths = c(1.2, 2))
 ```
 
 # Using the Model in a Browser
@@ -1224,59 +1441,54 @@ Given the small gains in increasing the number of calibration points and the lar
 
 ```{r}
 #| label: fig-calibration
-#| fig-cap: "Median error by calibration size (left; the first block's calibration, scored on every station of the two later blocks), by time since a 25-point calibration (middle; every block's calibration, scored on its own and later blocks' test points, labelled with the approximate time since calibration: the median elapsed seconds, including the rest between blocks), and with and without recalibrating (right; each block's 18 test points, from one 25-point calibration on the first block or a fresh 9-point calibration on each block's own grid). Violins show the distribution of participants' median error; points mark the median participant, joined across conditions. In the right panel, dashed outlines and open points are the 9-point recalibration."
+#| fig-cap: "Median error by calibration size (left; the first block's calibration, scored on every station of the two later blocks), by time since a 25-point calibration (middle; every block's calibration, scored on its own and later blocks' test points, labelled with the approximate time since calibration: the median elapsed seconds, including the rest between blocks), and with and without recalibrating (right; each block's 18 test points, from one 25-point calibration on the first block or a fresh 9-point calibration on each block's own grid). One dot per participant; ticks mark each group's median. In the right panel, open dots are the 9-point recalibration."
 #| fig-width: 6.5
 #| fig-height: 3.8
 # Approximate: the median across participants of the elapsed time from the end of calibration,
 # rounded to 5 s, including the rest between blocks.
 lag_labels <- sprintf("%s\n(~%.0f s)", c("Same\nblock", "1 block\nlater", "2 blocks\nlater"),
                       5 * round(60 * lag_minutes$minutes / 5))
-# Each participant's median error at each position: a violin per tracker for the distribution
-# across participants, with the median participant marked and joined by a line.
+# One dot per participant and tracker at each condition, the trackers side by side, with a tick
+# at each group's median.
 DODGE <- position_dodge(width = 0.75)
+JITTER_DODGE <- position_jitterdodge(jitter.width = 0.25, dodge.width = 0.75, seed = 1)
 size_and_time_data <- bind_rows(
   by_grid |> mutate(panel = "Calibration points", x = factor(grid)),
   by_lag |> mutate(panel = "Time since 25 point calibration", x = factor(lag_labels[lag + 1], lag_labels))
 )
-size_and_time_medians <- size_and_time_data |> summarise(error = median(error), .by = c(panel, x, tracker))
-size_and_time <- ggplot(size_and_time_data, aes(x, error, fill = tracker, color = tracker)) +
-  geom_violin(position = DODGE, alpha = 0.25, linewidth = 0.3, scale = "width", width = 0.7) +
-  geom_line(data = size_and_time_medians, aes(group = tracker), position = DODGE, linewidth = 0.7) +
-  geom_point(data = size_and_time_medians, position = DODGE, size = 1.6) +
+size_and_time <- ggplot(size_and_time_data, aes(x, error, color = tracker, group = tracker)) +
+  geom_point(position = JITTER_DODGE, size = 0.4, alpha = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median, geom = "errorbar",
+               position = DODGE, width = 0.6, color = INK, linewidth = 0.5) +
   scale_color_manual(values = TRACKER_COLORS) +
-  scale_fill_manual(values = TRACKER_COLORS) +
   facet_wrap(~panel, scales = "free_x") +
-  labs(x = NULL, y = "Each participant's median error\n(% of diagonal)")
+  labs(x = NULL, y = "Each participant's median error\n(% of diagonal, log scale)")
 
-# Recalibrating: for each block, a violin per tracker and scheme, side by side; the 9-point
-# recalibration has a dashed outline and an open median.
-# Violins and points are one per block, tracker and scheme; the median lines join a tracker and
-# scheme across blocks. Both are dodged the same way within each block.
+# Recalibrating: for each block, one dot per participant, tracker and scheme, the four groups side
+# by side with a tick at each one's median; the 9-point recalibration's dots are open.
 recal_data <- by_scheme_block |>
-  mutate(block = factor(paste("Block", block_number)),
-         series = interaction(tracker, scheme), cell = interaction(block, tracker, scheme))
-recal_medians <- recal_data |> summarise(error = median(error), .by = c(block, tracker, scheme, series, cell))
+  mutate(block = factor(paste("Block", block_number)), series = interaction(scheme, tracker))
 RECAL_DODGE <- position_dodge(width = 0.85)
-recalibrating <- ggplot(recal_data, aes(block, error, fill = tracker, color = tracker)) +
-  geom_violin(aes(linetype = scheme, group = cell), position = RECAL_DODGE, alpha = 0.25,
-              linewidth = 0.3, scale = "width", width = 0.8) +
-  geom_line(data = recal_medians, aes(linetype = scheme, group = series), position = RECAL_DODGE,
-            linewidth = 0.6) +
-  geom_point(data = recal_medians, aes(shape = scheme, group = cell), position = RECAL_DODGE,
-             size = 1.6, fill = "white") +
+recalibrating <- ggplot(recal_data, aes(block, error, color = tracker, shape = scheme, group = series)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.85, seed = 1),
+             size = 0.4, alpha = 0.5) +
+  stat_summary(fun = median, fun.min = median, fun.max = median, geom = "errorbar",
+               position = RECAL_DODGE, width = 0.7, color = INK, linewidth = 0.5) +
   scale_color_manual(values = TRACKER_COLORS, guide = "none") +
-  scale_fill_manual(values = TRACKER_COLORS, guide = "none") +
-  scale_linetype_manual(values = c("solid", "dashed")) +
-  scale_shape_manual(values = c(16, 21)) +
+  scale_shape_manual(values = c(16, 1)) +
   facet_wrap(~ "Recalibrating each block") +
   # It shares the left panels' y axis, so its labels are left off.
   theme(axis.text.y = element_blank()) +
-  labs(x = NULL, y = NULL, linetype = NULL, shape = NULL)
+  labs(x = NULL, y = NULL, shape = NULL)
 
 # Both legends together, along the top; one y range for all three panels; horizontal gridlines only.
+error_min <- min(size_and_time_data$error, recal_data$error)
 error_max <- max(size_and_time_data$error, recal_data$error)
 (size_and_time + recalibrating + plot_layout(widths = c(2, 1.2), guides = "collect")) &
-  scale_y_continuous(limits = c(0, error_max)) &
+  scale_y_log10(limits = c(error_min, error_max), breaks = c(1, 2, 5, 10, 20, 50),
+                labels = \(x) paste0(x, "%")) &
+  guides(color = guide_legend(override.aes = list(size = 1.6, alpha = 1)),
+         shape = guide_legend(override.aes = list(size = 1.6, alpha = 1))) &
   theme(strip.text = element_text(face = "bold", hjust = 0), legend.position = "top",
         panel.grid.major.x = element_blank())
 ```
@@ -1425,8 +1637,15 @@ accuracy <- fwd_frames |> summarise(error = median(error), .by = c(session, trac
 # screen for most participants (checked against the per-frame head pose).
 # Interocular distance (and its SD) as a percentage of the camera image's width, so it reads
 # independently of the camera's resolution. (Every session here recorded at the same one.)
+# And SaccadeJS's quality weight: its median over the frames scored, the same frames for both
+# trackers, as in the held-out evaluation's figure. Not a recording condition but the model's own
+# reading of the images, so it is tested alongside the conditions but counted apart from them.
+session_weight <- fwd_frames |>
+  filter(tracker == "SaccadeJS") |>
+  summarise(weight = median(quality_weight, na.rm = TRUE), .by = session)
 conditions <- observer |>
   left_join(select(machines, session, video_width), by = "session") |>
+  left_join(session_weight, by = "session") |>
   mutate(brightness_difference = abs(asymmetry), tilt = abs(roll),
          iod = 100 * iod / video_width, iod_sd = 100 * iod_sd / video_width)
 COVARIATES <- c(
@@ -1435,10 +1654,11 @@ COVARIATES <- c(
   "interocular distance SD" = "iod_sd", "head roll" = "tilt", "head roll SD" = "roll_sd",
   "head pitch" = "pitch", "eye aspect ratio" = "ear", "blinks" = "closed_pct",
   "image sharpness" = "sharpness", "sensor noise" = "noise")
+MODEL_COVARIATES <- c("model quality weight" = "weight")
 # Spearman, not Pearson, since a few participants with very large errors would otherwise decide a
 # correlation on their own; Holm over every test in the table.
 cov_tests <- conditions |>
-  select(session, all_of(COVARIATES)) |>
+  select(session, all_of(c(COVARIATES, MODEL_COVARIATES))) |>
   pivot_longer(-session, names_to = "covariate", values_to = "value") |>
   inner_join(accuracy, by = "session", relationship = "many-to-many") |>
   filter(is.finite(value)) |>
@@ -1447,7 +1667,8 @@ cov_tests <- conditions |>
             p = cor.test(value, error, method = "spearman", exact = FALSE)$p.value,
             .by = c(covariate, tracker)) |>
   mutate(p_holm = p.adjust(p, "holm"))
-cov_sig <- cov_tests |> filter(p_holm < 0.05) |> arrange(p_holm)
+# The significant recording conditions, leaving the model's weight out.
+cov_sig <- cov_tests |> filter(p_holm < 0.05, covariate %in% names(COVARIATES)) |> arrange(p_holm)
 p_uncorrected <- function(cov, tr) p_fmt(value_of(cov_tests, p, covariate == cov, tracker == tr))
 
 # Within participants, frame by frame: what changes from moment to moment within a session,
@@ -1589,13 +1810,13 @@ As described in @sec-data-recording, we measured several different features of s
 
 At the level of individual images, measuring correlations within a participant (@fig-within), we checked two kinds of image properties. One was to measure change since calibration. Here, everything we measured had a small but statistically significant correlation with accuracy for both trackers (SaccadeJS median ρ from `r f2(min(filter(frame_tests, tracker == "SaccadeJS", group == "Drift from calibration")$median_rho))` to `r f2(max(filter(frame_tests, tracker == "SaccadeJS", group == "Drift from calibration")$median_rho))`). Time since calibration, changes in head pitch, roll, and yaw, changes in interocular distance, shifts in head position, and changes in eye brightness were all correlated with increased error. We also measured some features of the eye images that changed moment to moment. Eyes that are more open correlate with lower error, blinks correlate with higher error, and increased blur of the image correlates with higher error. 
 
-The SaccadeJS model outputs a quality weight for each image. This model-derived measure was among the strongest predictors of error (`r frame_rho_of("model quality weight", "SaccadeJS")`), on par with eye openness (`r frame_rho_of("eye aspect ratio", "SaccadeJS")`) and blinks (`r frame_rho_of("blinks", "SaccadeJS")`). This measure is computed in real-time, and could be used by researchers to estimate when prediction quality is poor.
+The SaccadeJS model outputs a quality weight for each image. This model-derived measure was among the strongest predictors of error (`r frame_rho_of("model quality weight", "SaccadeJS")`), on par with eye openness (`r frame_rho_of("eye aspect ratio", "SaccadeJS")`) and blinks (`r frame_rho_of("blinks", "SaccadeJS")`). This measure is computed in real-time, and could be used by researchers to estimate when prediction quality is poor. It also predicted which participants would be tracked well. Each participant's median weight was the strongest correlate of their median error (@fig-covariates; `r rho_of("model quality weight", "SaccadeJS")`), and it predicted WebGazer's error too (`r rho_of("model quality weight", "WebGazer")`), even though WebGazer does not use it. So the weight reflects the quality of the recording, not only SaccadeJS's confidence in its own predictions.
 
 ```{r}
 #| label: fig-covariates
-#| fig-cap: !expr sprintf("Spearman correlations across all %d participants between each recording condition, averaged over the session, and median error, strongest first for SaccadeJS. A negative ρ means participants with more of the condition were tracked more accurately. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. The icons sketch a low (left) and a high (right) value of each condition. The left–right brightness difference and head roll are sizes, whichever eye is darker or whichever way the head tilts; head pitch runs from the head tipped down to tipped up.", n_distinct(cov_tests_participants), nrow(cov_tests))
+#| fig-cap: !expr sprintf("Spearman correlations across all %d participants between each recording condition, averaged over the session, and median error, strongest first for SaccadeJS. A negative ρ means participants with more of the condition were tracked more accurately. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. The icons sketch a low (left) and a high (right) value of each condition. The left–right brightness difference and head roll are sizes, whichever eye is darker or whichever way the head tilts; head pitch runs from the head tipped down to tipped up. The model quality weight is SaccadeJS's per-frame weight, its median over the same frames for both trackers.", n_distinct(cov_tests_participants), nrow(cov_tests))
 #| fig-width: 6.5
-#| fig-height: 4.4
+#| fig-height: 4.7
 # Strongest correlation with SaccadeJS's error at the top.
 cov_order <- cov_tests |> filter(tracker == "SaccadeJS") |> arrange(desc(abs(rho))) |> pull(covariate)
 cov_rows <- set_names(rev(seq_along(cov_order)), cov_order)
@@ -1612,7 +1833,7 @@ across_plot <- ggplot(cov_dots, aes(rho, row, color = tracker)) +
   scale_fill_manual(values = c(TRACKER_COLORS, "not significant" = "white"), guide = "none") +
   scale_y_continuous(breaks = cov_rows, labels = capitalize_first(names(cov_rows)), limits = row_limits,
                      expand = c(0, 0)) +
-  scale_x_continuous(limits = c(-0.5, 0.5), breaks = seq(-0.4, 0.4, by = 0.2)) +
+  scale_x_continuous(limits = c(-0.7, 0.5), breaks = round(seq(-0.6, 0.4, by = 0.2), 1)) +
   theme(panel.grid.major.x = element_blank()) +
   labs(x = "Spearman's ρ with median error", y = NULL)
 
@@ -1901,3 +2122,8 @@ Current performance vs future. Expect performance might go up. Point people to s
 Might be able to release smaller quantized versions of the model that are faster.
 
 Encourage people to use the dataset we generated. (Or extend the dataset by running more people through the protocol!)
+
+Future ideas:
+- Model quantization
+- Geometric awareness
+- Recalibration that is geometrically aware; e.g., calibrate on 15 points to start, then periodically recalibrate on 3, but don't throw out the 15.

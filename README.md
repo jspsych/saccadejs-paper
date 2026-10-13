@@ -26,7 +26,7 @@ While the Zenodo record is an unpublished draft, downloading needs the share lin
 
 ### Model evaluation dataset
 
-Section 4 uses a second dataset: the deployed model's per-frame embeddings of the held-out participants, `saccadejs-eval.tar` (about 245 MB). It is built by `analysis/build_paper_eval_dataset.py` in [jspsych/eye-tracking](https://github.com/jspsych/eye-tracking). `R/data.R` finds it in:
+Section 4 uses a second dataset: the deployed model's per-frame embeddings of the held-out participants, `saccadejs-eval.tar` (about 255 MB). It is built by `analysis/build_paper_eval_dataset.py` in [jspsych/eye-tracking](https://github.com/jspsych/eye-tracking). `R/data.R` finds it in:
 
 1. the folder in the `SACCADEJS_EVAL_DATA` environment variable, if set;
 2. `../eye-tracking/data/saccadejs-eval`, the copy the eye-tracking repo keeps;

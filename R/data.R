@@ -86,7 +86,7 @@ download_zenodo_archive <- function(record, file, md5, dest, token_var, label) {
 # record and, while the record is a draft, the same ZENODO_TOKEN.
 
 EVAL_ZENODO_FILE <- "saccadejs-eval.tar"
-EVAL_ZENODO_MD5 <- "a90fa7c46c9631cf28b4fd3f5ab29bc5"
+EVAL_ZENODO_MD5 <- "5ba002707937c99ff9a6b2d25e9c72f1"
 EVAL_DATASET_NAME <- "saccadejs-eval"
 
 eval_data_dir <- function() {
@@ -105,7 +105,7 @@ eval_data_dir <- function() {
   if (!is_dataset(local)) {
     download_zenodo_archive(ZENODO_RECORD, EVAL_ZENODO_FILE, EVAL_ZENODO_MD5, "data",
                             token_var = "ZENODO_TOKEN",
-                            label = "the model evaluation dataset (about 245 MB)")
+                            label = "the model evaluation dataset (about 255 MB)")
   }
   local
 }
