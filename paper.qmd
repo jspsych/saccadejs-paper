@@ -109,6 +109,42 @@ top_countries_text <- paste0(paste(head(top_countries$label, -1), collapse = ", 
                              tail(top_countries$label, 1))
 ```
 
+```{r}
+#| label: dataset-summary
+# The SaccadeJS dataset, from its summary (see summary_data_dir in R/data.R): one row per
+# released participant, both collections, and the counts from each recorded session to the
+# released dataset.
+summary_dir <- summary_data_dir()
+dataset <- read_csv(file.path(summary_dir, "participants.csv"), show_col_types = FALSE)
+consent <- read_csv(file.path(summary_dir, "consent.csv"), show_col_types = FALSE)
+# A whole number for the text, with thousands separated by commas.
+fn <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+# One step's count in one collection, e.g. consent_n("training", "consent: opted out").
+consent_n <- function(which, step) {
+  value_of(consent, n, collection == c(training = "eyedata23", `held-out` = "eyedata24")[[which]],
+           count == step)
+}
+ds_n <- function(which = c("training", "held-out")) sum(dataset$split %in% which)
+ds_sum <- function(column, which = c("training", "held-out")) {
+  sum(dataset[[column]][dataset$split %in% which])
+}
+ds_share <- function(column, value, which) {
+  in_split <- dataset$split == which
+  f0(100 * mean(dataset[[column]][in_split] == value, na.rm = TRUE))
+}
+ds_trials_per_person <- function(which) unique(dataset$n_trials[dataset$split == which])
+stopifnot(length(ds_trials_per_person("training")) == 1,
+          length(ds_trials_per_person("held-out")) == 1)
+# The three most common browser windows, once fullscreen.
+ds_windows <- dataset |> count(screen_width, screen_height, sort = TRUE) |> head(3) |>
+  mutate(label = paste0(screen_width, " × ", screen_height, " (", n, " participants)"))
+ds_windows_text <- paste0(paste(ds_windows$label[1:2], collapse = ", "), ", or ",
+                          ds_windows$label[3])
+# The held-out participants are the evaluation dataset's: the two summaries must agree.
+eval_ids <- read_csv(file.path(eval_data_dir(), "participants.csv"), show_col_types = FALSE)$participant
+stopifnot(setequal(eval_ids, dataset$participant[dataset$split == "held-out"]))
+```
+
 # Introduction
 
 **TODO:** This is copy-and-pasted from the grant submission. Need to trim the fat.
@@ -139,11 +175,13 @@ Finally, there are a handful of proprietary commercially available systems. We a
 
 ## Contribution
 
-With the goal of facilitating the development of open-source, webcam-based eyetracking technology for scientific research, we present a dataset with 1,950 participants (link to OSF?). We additionally designed and trained a gaze estimation model on this dataset that in general outperforms WebGazer (briefly describe caveats?).
+With the goal of facilitating the development of open-source, webcam-based eyetracking technology for scientific research, we present a dataset with `r fn(ds_n())` participants (link to OSF?). We additionally designed and trained a gaze estimation model on this dataset that in general outperforms WebGazer (briefly describe caveats?).
 
 # The SaccadeJS Dataset
 
-Describe overall features of the dataset. Basically an overview for this section.
+We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants looking at fixed targets on a laptop on desktop display. The dataset contains `r fn(ds_sum("n_trials"))` videos, `r ds_trials_per_person("training")` per person for the `r fn(ds_n("training"))` participants in the training set and `r ds_trials_per_person("held-out")` per person for the `r ds_n("held-out")` participants in the held-out evaluation set, for a total of `r fn(ds_sum("n_frames"))` image frames. To date, this is the largest open dataset for training gaze prediction models. 
+
+## Method
 
 *Task.* Participants completed a series of 144 trials. During each trial, a fixation target appeared at one of 144 possible locations on the screen (see Fig. X). We told participants to look at the dot as quickly as possible and to hold their gaze on the dot until it changed locations. The location changed every 1500ms. In 30 of the 144 trials, the center of the fixation target changed to red after 1000ms. The participant's task was to press the spacebar as quickly as possible during these trials. The experiment did not advance to the next trial until the participant pressed the spacebar (with a minimum duration of 500ms). There were three blocks of trials, allowing a short rest between each group of 48. The 30 detection trials were split evenly over the three blocks.
 
@@ -153,15 +191,19 @@ Before completing the fixation task, we gave participants some instructions to t
 
 *Preprocessing.* Describe steps used in converting raw data to eventual public dataset. Includes extracting the eye region.
 
-*Characteristics.* Describe participants, demographics that we have (like webcam type and glasses vs no glasses, etc.)
+*Characteristics.* Most participants used their computer's built-in webcam: `r ds_share("webcam", "integrated", "training")`% of the training set and `r ds_share("webcam", "integrated", "held-out")`% of the held-out set; the rest used a separate one. `r ds_share("glasses", "yes", "training")`% of the training set and `r ds_share("glasses", "yes", "held-out")`% of the held-out set wore glasses during the task. Once in fullscreen, the browser window was most often `r ds_windows_text` CSS pixels.
 
-*Privacy.* We informed the participants three separate times that the data we recorded would be made publicly available. The first was in the description of the task on Prolific, and the second was during the instructions at the start of the experiment. In both cases we encouraged participants to not participate if they were uncomfortable with their video recordings being public. Finally, at the end of the experiment, we reminded participants that the data would be public and asked if they wanted to opt out at that point. XX1 out of 1809XXX elected to remove themselves from the dataset at that point, leaving 10808XXX with permission. The protocol was approved (as exempt) by the Vassar College IRB.
+*Privacy.* We informed the participants three separate times that the data we recorded would be made publicly available. The first was in the description of the task on Prolific, and the second was during the instructions at the start of the experiment. In both cases we encouraged participants to not participate if they were uncomfortable with their video recordings being public. Finally, at the end of the experiment, we reminded participants that the data would be public and asked if they wanted to opt out at that point. In the training collection, `r consent_n("training", "consent: opted out")` of the `r fn(consent_n("training", "answered the consent question"))` participants elected to remove themselves from the dataset at that point (`r consent_n("training", "opted out: research only")` of them allowed our team to use their videos privately; `r consent_n("training", "opted out: delete")` asked us to delete them), leaving `r fn(consent_n("training", "consent: public"))` with permission. Of those, `r consent_n("training", "removed on request")` later asked to be removed and `r consent_n("training", "public, not removed, not released")` were missing a usable video for at least one trial, leaving the `r fn(ds_n("training"))` in the training set. In the held-out collection, an error in the experiment meant that the answer to this final question was saved for only `r consent_n("held-out", "answered the consent question")` of the `r consent_n("held-out", "saved sessions")` participants, `r consent_n("held-out", "consent: public")` of whom agreed. We asked the others individually through Prolific's messages: of the `r consent_n("held-out", "asked by Prolific message")` we asked, `r consent_n("held-out", "by message: agreed")` agreed, `r consent_n("held-out", "by message: declined")` declined, and `r consent_n("held-out", "by message: no response")` did not respond. The `r ds_n("held-out")` participants who agreed and had complete data form the held-out set (`r consent_n("held-out", "released, consent in the experiment")` who agreed in the experiment and `r consent_n("held-out", "released, consent by Prolific message")` by message). The protocol was approved (as exempt) by the Vassar College IRB.
 
-*Data Quality.* Measures of quality? How many videos do we lose for no face? Blinks? Low detectability?
+*Data Quality.* Each 500 ms video held `r f1(ds_sum("n_frames") / ds_sum("n_trials"))` frames on average; the number depends on the webcam's frame rate. MediaPipe found a face in `r f1(100 * ds_sum("n_face_found", "training") / ds_sum("n_frames", "training"))`% of the training set's frames and `r f1(100 * ds_sum("n_face_found", "held-out") / ds_sum("n_frames", "held-out"))`% of the held-out set's.
+
+Measures of quality? How many videos do we lose for no face? Blinks? Low detectability?
 
 * Sep. 28 2026 - getting per-frame metadata (blinks, brightness, resolution, relative distance from camera, detectable face) so we have these metrics.
 
-*Accessing.* Give clear instructions about how to access the dataset.
+## Accessing the SaccadeJS dataset
+
+The dataset is published on Zenodo [LINKS]. It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial 4.0 International license (CC BY-NC 4.0).
 
 # The SaccadeJS Gaze Model {#sec-model}
 

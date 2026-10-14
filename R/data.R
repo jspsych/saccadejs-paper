@@ -90,22 +90,45 @@ EVAL_ZENODO_MD5 <- "5ba002707937c99ff9a6b2d25e9c72f1"
 EVAL_DATASET_NAME <- "saccadejs-eval"
 
 eval_data_dir <- function() {
+  eye_tracking_dataset(EVAL_DATASET_NAME, "SACCADEJS_EVAL_DATA", EVAL_ZENODO_FILE, EVAL_ZENODO_MD5,
+                       "the model evaluation dataset (about 255 MB)")
+}
+
+# Finding the dataset summary: who is in the SaccadeJS dataset and how they got there, without
+# identifiers, built by analysis/build_dataset_summary.py in jspsych/eye-tracking. It holds
+# participants.csv (one row per released participant, both collections) and consent.csv (counts
+# from a saved session to a released participant). Found as for the evaluation dataset, with
+# SACCADEJS_SUMMARY_DATA, then ../eye-tracking/data/saccadejs-dataset-summary, then
+# data/saccadejs-dataset-summary, downloaded from the same Zenodo record.
+
+SUMMARY_ZENODO_FILE <- "saccadejs-dataset-summary.tar"
+SUMMARY_ZENODO_MD5 <- "791b29d437cdd6519d7d0e2830ac6315"
+SUMMARY_DATASET_NAME <- "saccadejs-dataset-summary"
+
+summary_data_dir <- function() {
+  eye_tracking_dataset(SUMMARY_DATASET_NAME, "SACCADEJS_SUMMARY_DATA", SUMMARY_ZENODO_FILE,
+                       SUMMARY_ZENODO_MD5, "the dataset summary (about 150 KB)")
+}
+
+# A dataset built in jspsych/eye-tracking: the folder named by `env_var`, if set; else the
+# eye-tracking repo's copy beside this one; else this repo's data/ folder, downloaded from the
+# Zenodo record first if it is missing. Each has a participants.csv at its top.
+eye_tracking_dataset <- function(name, env_var, zenodo_file, md5, label) {
   is_dataset <- function(dir) file.exists(file.path(dir, "participants.csv"))
 
-  env <- Sys.getenv("SACCADEJS_EVAL_DATA")
+  env <- Sys.getenv(env_var)
   if (nzchar(env)) {
-    if (!is_dataset(env)) stop("SACCADEJS_EVAL_DATA is set but has no participants.csv: ", env)
+    if (!is_dataset(env)) stop(env_var, " is set but has no participants.csv: ", env)
     return(env)
   }
 
-  sibling <- file.path("..", "eye-tracking", "data", EVAL_DATASET_NAME)
+  sibling <- file.path("..", "eye-tracking", "data", name)
   if (is_dataset(sibling)) return(sibling)
 
-  local <- file.path("data", EVAL_DATASET_NAME)
+  local <- file.path("data", name)
   if (!is_dataset(local)) {
-    download_zenodo_archive(ZENODO_RECORD, EVAL_ZENODO_FILE, EVAL_ZENODO_MD5, "data",
-                            token_var = "ZENODO_TOKEN",
-                            label = "the model evaluation dataset (about 255 MB)")
+    download_zenodo_archive(ZENODO_RECORD, zenodo_file, md5, "data", token_var = "ZENODO_TOKEN",
+                            label = label)
   }
   local
 }
