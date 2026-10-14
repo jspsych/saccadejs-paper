@@ -102,12 +102,12 @@ eval_data_dir <- function() {
 # data/saccadejs-dataset-summary, downloaded from the same Zenodo record.
 
 SUMMARY_ZENODO_FILE <- "saccadejs-dataset-summary.tar"
-SUMMARY_ZENODO_MD5 <- "791b29d437cdd6519d7d0e2830ac6315"
+SUMMARY_ZENODO_MD5 <- "d0729866477a5c64f04c3599b63dcc32"
 SUMMARY_DATASET_NAME <- "saccadejs-dataset-summary"
 
 summary_data_dir <- function() {
   eye_tracking_dataset(SUMMARY_DATASET_NAME, "SACCADEJS_SUMMARY_DATA", SUMMARY_ZENODO_FILE,
-                       SUMMARY_ZENODO_MD5, "the dataset summary (about 150 KB)")
+                       SUMMARY_ZENODO_MD5, "the dataset summary (about 450 KB)")
 }
 
 # A dataset built in jspsych/eye-tracking: the folder named by `env_var`, if set; else the
