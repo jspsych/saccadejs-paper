@@ -179,23 +179,128 @@ With the goal of facilitating the development of open-source, webcam-based eyetr
 
 # The SaccadeJS Dataset
 
-We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants looking at fixed targets on a laptop on desktop display. The dataset contains `r fn(ds_sum("n_trials"))` videos, `r ds_trials_per_person("training")` per person for the `r fn(ds_n("training"))` participants in the training set and `r ds_trials_per_person("held-out")` per person for the `r ds_n("held-out")` participants in the held-out evaluation set, for a total of `r fn(ds_sum("n_frames"))` image frames. To date, this is the largest open dataset for training gaze prediction models. 
+We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants looking at fixed targets on a laptop or desktop display. The dataset contains `r fn(ds_sum("n_trials"))` videos, `r ds_trials_per_person("training")` per person for the `r fn(ds_n("training"))` participants in the training set and `r ds_trials_per_person("held-out")` per person for the `r ds_n("held-out")` participants in the held-out evaluation set, for a total of `r fn(ds_sum("n_frames"))` image frames. To date, this is the largest open dataset for training gaze prediction models. \<GAP: needs a comparison and citation, e.g. GazeCapture (Krafka et al., 2016: 1,474 participants, ~2.5M frames). Also say what form the frames are released in: full video, or the eye crops and landmarks in the frame records\> 
 
 ## Method
 
-*Task.* Participants completed a series of 144 trials. During each trial, a fixation target appeared at one of 144 possible locations on the screen (see Fig. X). We told participants to look at the dot as quickly as possible and to hold their gaze on the dot until it changed locations. The location changed every 1500ms. In 30 of the 144 trials, the center of the fixation target changed to red after 1000ms. The participant's task was to press the spacebar as quickly as possible during these trials. The experiment did not advance to the next trial until the participant pressed the spacebar (with a minimum duration of 500ms). There were three blocks of trials, allowing a short rest between each group of 48. The 30 detection trials were split evenly over the three blocks.
+\<GAP: when and how participants were recruited (Prolific, June 2023 for training and December 2024 for held-out), eligibility, payment, and time to complete\>
+### Participants
 
-Before completing the fixation task, we gave participants some instructions to try and improve the quality of the data. We said: "Please adjust the camera, your position, and the lighting to get a good view of your face and especially your eyes. Here are some tips: (1) To avoid backlighting, make sure a strong light is in front of you. (2) If you wear glasses, try to reduce glare on the lenses as much as possible. (3) You should be the only face in frame. If you can clearly see the whites of your eyes, you're likely in a good spot!" We also asked participants whether they were using an integrated or external webcam (showing examples of each type through photos) and whether they were wearing glasses.
+### Task
 
-*Data.* During the task, we recorded individual video clips for each trial. The recording started after the first 1000ms of the trial, allowing time for the participant to saccade to the new location of the dot, and lasted for 500ms. We also recorded the individual response times to the dot detection task.
+Participants completed a series of 144 trials. \<ERROR/GAP: this describes only the training collection. Held-out participants did the task twice, in two phases of all 144 positions: 288 trials in 6 blocks, with 60 detection trials\> During each trial, a fixation target appeared at one of 144 possible locations on the screen (@fig-task). We told participants to look at the dot as quickly as possible and to hold their gaze on the dot until it changed locations. \<ERROR: the instructions said to "keep your gaze locked onto the dot" and "remain focused on the dot"; nothing about speed\> The location changed every 1500ms. \<ERROR: only on trials without detection; on a detection trial it changed after the spacebar press\> In 30 of the 144 trials, the center of the fixation target changed to red after 1000ms. \<ERROR: the red dot was a separate display shown after the 1500 ms recording trial, so about 1500 ms; its ring turned red and its center black\> The participant's task was to press the spacebar as quickly as possible during these trials. The experiment did not advance to the next trial until the participant pressed the spacebar (with a minimum duration of 500ms). \<ERROR: no minimum in the code; the trial ended at the first press\> There were three blocks of trials, allowing a short rest between each group of 48. The 30 detection trials were split evenly over the three blocks. \<GAP: not mentioned: 3 practice trials (one with detection), a check for a keyboard, and the switch to fullscreen before the task\>
 
-*Preprocessing.* Describe steps used in converting raw data to eventual public dataset. Includes extracting the eye region.
+```{r}
+#| label: fig-task
+#| fig-cap: "The data-collection task. (A) One trial. A target appeared at a new position; after 1,000 ms for the eyes to reach it, the webcam recorded 500 ms of video. On detection trials the target then turned red and black until the participant pressed the spacebar. The target was an 8 px white dot with a 6 px black border. (B) The 144 target positions: a 16 × 9 grid spanning 5–95% of the screen's width and height. (C) The sessions. Each block showed 48 positions drawn without replacement, in random order, so three blocks covered all 144; a break followed each block. Held-out participants saw all 144 twice, in two phases. Blue marks recorded video."
+#| fig-width: 6.5
+#| fig-height: 3.3
+# (A) One trial: three screens along a time axis. (B) The 144 positions. (C) The sessions.
+# Screens are 16:9; positions are in percent of the screen's width and height, y down.
+SCREEN_W <- 2.4
+SCREEN_H <- SCREEN_W * 9 / 16
+DETECT_RED <- "#c8322d"
+RECORDING <- "#dce9f8"
+# The same box fill and arrows as the model's diagram, whose chunk comes later.
+TASK_FILL <- "#f1f0ec"
+task_arrow <- arrow(length = unit(0.06, "inches"), type = "closed")
+screen_dot <- function(x, y, detect = FALSE, size = 2.2) {
+  annotate("point", x = x, y = y, shape = 21, size = size, stroke = 1.1,
+           fill = if (detect) "black" else "white", color = if (detect) DETECT_RED else "black")
+}
 
-*Characteristics.* Most participants used their computer's built-in webcam: `r ds_share("webcam", "integrated", "training")`% of the training set and `r ds_share("webcam", "integrated", "held-out")`% of the held-out set; the rest used a separate one. `r ds_share("glasses", "yes", "training")`% of the training set and `r ds_share("glasses", "yes", "held-out")`% of the held-out set wore glasses during the task. Once in fullscreen, the browser window was most often `r ds_windows_text` CSS pixels.
+# (A) A target at 70% across and 30% down, shown on three screens.
+trial_screens <- tibble(
+  x = c(1.3, 4.3, 7.3),
+  fill = c("white", RECORDING, "white"),
+  title = c("Look at the new target", "Video recorded", "Detection trials only"),
+  detail = c("0–1,000 ms", "1,000–1,500 ms", "until the spacebar is pressed")
+)
+dot_x <- trial_screens$x - SCREEN_W / 2 + 0.7 * SCREEN_W
+dot_y <- 0.3 * SCREEN_H
+panel_a <- ggplot(trial_screens) +
+  geom_rect(aes(xmin = x - SCREEN_W / 2, xmax = x + SCREEN_W / 2, ymin = -SCREEN_H, ymax = 0,
+                fill = fill), color = INK_2, linewidth = 0.3) +
+  scale_fill_identity() +
+  screen_dot(dot_x[1], -dot_y) + screen_dot(dot_x[2], -dot_y) +
+  screen_dot(dot_x[3], -dot_y, detect = TRUE) +
+  annotate("text", x = trial_screens$x[2] - SCREEN_W / 2 + 0.12, y = -0.14, label = "● REC",
+           hjust = 0, size = 2.1, color = DETECT_RED, fontface = "bold") +
+  annotate("segment", x = c(2.55, 5.55), xend = c(3.05, 6.05), y = -SCREEN_H / 2,
+           yend = -SCREEN_H / 2, color = INK_2, linewidth = 0.35, arrow = task_arrow) +
+  geom_text(aes(x, 0.42, label = title), fontface = "bold", size = 2.6, color = INK) +
+  geom_text(aes(x, 0.17, label = detail), size = 2.3, color = INK_2) +
+  annotate("text", x = 8.65, y = -SCREEN_H / 2, hjust = 0, size = 2.25, color = INK_2,
+           lineheight = 0.9, label = "then the\nnext target") +
+  coord_fixed(xlim = c(0, 9.6), ylim = c(-SCREEN_H - 0.05, 0.6), expand = FALSE) +
+  theme_void()
 
-*Privacy.* We informed participants three separate times that the data we recorded would be made publicly available. The first was in the description of the experiment on Prolific; the second was during the instructions at the start of the experiment. In both cases we requested participants to not participate if they didn't want their video recordings to be public. Finally, at the end of the experiment, we reminded participants that the data would be public and asked if they wanted to opt out at that point. In the training dataset, `r consent_n("training", "consent: opted out")` of the `r fn(consent_n("training", "answered the consent question"))` participants removed themselves from the dataset at that point, leaving `r fn(consent_n("training", "consent: public"))` with permission. Of those, `r consent_n("training", "removed on request")` later asked to be removed and `r consent_n("training", "public, not removed, not released")` were missing a usable video for at least one trial, leaving the `r fn(ds_n("training"))` in the training set. In the hold-out test collection, an error in the experiment meant that the answer to this final question was saved for only `r consent_n("held-out", "answered the consent question")` of the `r consent_n("held-out", "saved sessions")` participants, `r consent_n("held-out", "consent: public")` of whom agreed. We asked the others individually through Prolific's messages: of the `r consent_n("held-out", "asked by Prolific message")` we asked, `r consent_n("held-out", "by message: agreed")` agreed, `r consent_n("held-out", "by message: declined")` declined, and `r consent_n("held-out", "by message: no response")` did not respond. This left `r ds_n("held-out")` participants who agreed and had complete data in the test set. The protocol was approved (as exempt) by the Vassar College Institutional Review Board.
+# (B) The 16 x 9 lattice, 5% to 95% of the width and height.
+lattice <- expand_grid(x = seq(5, 95, length.out = 16), y = seq(5, 95, length.out = 9))
+panel_b <- ggplot(lattice, aes(x / 100 * 16, -y / 100 * 9)) +
+  annotate("rect", xmin = 0, xmax = 16, ymin = -9, ymax = 0, fill = "white", color = INK_2,
+           linewidth = 0.3) +
+  geom_point(shape = 21, size = 0.8, stroke = 0.5, fill = "white", color = "black") +
+  coord_fixed(xlim = c(-0.1, 16.1), ylim = c(-9.1, 0.1), expand = FALSE) +
+  theme_void()
 
-*Data Quality.* Each 500 ms video held `r f1(ds_sum("n_frames") / ds_sum("n_trials"))` frames on average; the number depends on the webcam's frame rate. MediaPipe found a face in `r f1(100 * ds_sum("n_face_found", "training") / ds_sum("n_frames", "training"))`% of the training set's frames and `r f1(100 * ds_sum("n_face_found", "held-out") / ds_sum("n_frames", "held-out"))`% of the held-out set's.
+# (C) Each session: practice, then blocks of 48 trials with a break after each. Each block's 48
+# positions are drawn without replacement from the 144, so three blocks show every position once.
+session_box <- function(row, x, w, label, fill = TASK_FILL) {
+  tibble(row = row, x = x, w = w, label = label, fill = fill)
+}
+block_w <- 1.45
+gap <- 0.18
+blocks_from <- function(row, start, n, first_label = 1) {
+  map_dfr(seq_len(n), \(i) session_box(row, start + (i - 1) * (block_w + gap) + block_w / 2, block_w,
+                                       paste0("Block ", first_label + i - 1, "\n48 trials\n10 detection"),
+                                       RECORDING))
+}
+practice_w <- 1.0
+start <- practice_w + gap
+sessions <- bind_rows(
+  session_box(2, practice_w / 2, practice_w, "Practice\n3 trials"),
+  blocks_from(2, start, 3),
+  session_box(1, practice_w / 2, practice_w, "Practice\n3 trials"),
+  blocks_from(1, start, 6)
+)
+row_y <- c(`2` = 1.6, `1` = 0)
+sessions <- mutate(sessions, y = row_y[as.character(row)])
+phase_x <- start + c(0, 3) * (block_w + gap)
+phase_w <- 3 * block_w + 2 * gap
+panel_c <- ggplot(sessions) +
+  geom_rect(aes(xmin = x - w / 2, xmax = x + w / 2, ymin = y - 0.38, ymax = y + 0.38, fill = fill),
+            color = INK_2, linewidth = 0.3) +
+  scale_fill_identity() +
+  geom_text(aes(x, y, label = label), size = 2.1, color = INK, lineheight = 0.9) +
+  annotate("text", x = -0.1, y = row_y, hjust = 1, size = 2.6, fontface = "bold", color = INK,
+           lineheight = 0.9, label = c("Training\n(2023)", "Held-out\n(2024)")) +
+  annotate("segment", x = phase_x[c(1, 1, 2)], xend = phase_x[c(1, 1, 2)] + phase_w,
+           y = c(row_y[["2"]], 0, 0) + 0.52, yend = c(row_y[["2"]], 0, 0) + 0.52,
+           color = INK_2, linewidth = 0.35) +
+  annotate("text", x = phase_x[c(1, 1, 2)] + phase_w / 2, y = c(row_y[["2"]], 0, 0) + 0.66,
+           size = 2.3, color = INK_2,
+           label = c("All 144 positions, once", "Phase 1: all 144 positions",
+                     "Phase 2: all 144 again")) +
+  coord_fixed(xlim = c(-1.3, start + 6 * (block_w + gap)), ylim = c(-0.45, 2.42), expand = FALSE) +
+  theme_void()
+
+(panel_a / (panel_b | panel_c) + plot_layout(heights = c(0.85, 1))) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 9, face = "bold"))
+```
+
+Before completing the fixation task, we gave participants some instructions to try and improve the quality of the data. We said: "Please adjust the camera, your position, and the lighting to get a good view of your face and especially your eyes. Here are some tips: (1) To avoid backlighting, make sure a strong light is in front of you. (2) If you wear glasses, try to reduce glare on the lenses as much as possible. (3) You should be the only face in frame. If you can clearly see the whites of your eyes, you're likely in a good spot!" We also asked participants whether they were using an integrated or external webcam (showing examples of each type through photos) and whether they were wearing glasses. \<GAP: the requested camera width (480 px), and that the window size was recorded once in fullscreen\>
+
+*Data.* During the task, we recorded individual video clips for each trial. The recording started after the first 1000ms of the trial, allowing time for the participant to saccade to the new location of the dot, and lasted for 500ms. We also recorded the individual response times to the dot detection task. \<GAP: format (WebM; VP9 requested, some browsers recorded H.264) and resolution, which varied by camera\>
+
+*Preprocessing.* Describe steps used in converting raw data to eventual public dataset. Includes extracting the eye region. \<GAP: every frame decoded from each video; MediaPipe Face Landmarker (478 landmarks); both eyes cropped, grayscale, 144 × 36, contrast-equalized (CLAHE); a participant is included only with a usable video for every trial\>
+
+*Characteristics.* Most participants used their computer's built-in webcam: `r ds_share("webcam", "integrated", "training")`% of the training set and `r ds_share("webcam", "integrated", "held-out")`% of the held-out set; the rest used a separate one. `r ds_share("glasses", "yes", "training")`% of the training set and `r ds_share("glasses", "yes", "held-out")`% of the held-out set wore glasses during the task. Once in fullscreen, the browser window was most often `r ds_windows_text` CSS pixels. \<GAP: no age, sex or other demographics; they are not in the session data, and Prolific's exports for the 2023 study may have expired\>
+
+*Privacy.* We informed participants three separate times that the data we recorded would be made publicly available. The first was in the description of the experiment on Prolific; \<CHECK: the Prolific study description isn't in the code; confirm its wording\> the second was during the instructions at the start of the experiment. In both cases we requested participants to not participate if they didn't want their video recordings to be public. Finally, at the end of the experiment, we reminded participants that the data would be public and asked if they wanted to opt out at that point. \<GAP: those who opted out were then asked whether the research team could keep the videos privately or should delete them\> In the training dataset, `r consent_n("training", "consent: opted out")` of the `r fn(consent_n("training", "answered the consent question"))` participants removed themselves from the dataset at that point, leaving `r fn(consent_n("training", "consent: public"))` with permission. Of those, `r consent_n("training", "removed on request")` later asked to be removed and `r consent_n("training", "public, not removed, not released")` were missing a usable video for at least one trial, leaving the `r fn(ds_n("training"))` in the training set. In the hold-out test collection, \<CHECK: one name for this set throughout; the section uses "held-out evaluation set", "hold-out test collection" and "test set"\> an error in the experiment meant that the answer to this final question was saved for only `r consent_n("held-out", "answered the consent question")` of the `r consent_n("held-out", "saved sessions")` participants, `r consent_n("held-out", "consent: public")` of whom agreed. We asked the others individually through Prolific's messages: \<CHECK: the 150 asked are not exactly "the others": they include people with no saved session and one who opted out in the experiment. Also, 352 held-out participants left video but only 307 sessions were saved; the other 45 aren't mentioned\> of the `r consent_n("held-out", "asked by Prolific message")` we asked, `r consent_n("held-out", "by message: agreed")` agreed, `r consent_n("held-out", "by message: declined")` declined, and `r consent_n("held-out", "by message: no response")` did not respond. This left `r ds_n("held-out")` participants who agreed and had complete data in the test set. The protocol was approved (as exempt) by the Vassar College Institutional Review Board. \<GAP: protocol number\>
+
+*Data Quality.* Each 500 ms video held `r f1(ds_sum("n_frames") / ds_sum("n_trials"))` frames on average; the number depends on the webcam's frame rate. MediaPipe found a face in `r f1(100 * ds_sum("n_face_found", "training") / ds_sum("n_frames", "training"))`% of the training set's frames and `r f1(100 * ds_sum("n_face_found", "held-out") / ds_sum("n_frames", "held-out"))`% of the held-out set's. \<GAP: why the held-out set has fewer frames with a face (92.8% vs 98.7%); blink rates are pending the per-frame metadata\>
 
 Measures of quality? How many videos do we lose for no face? Blinks? Low detectability?
 
@@ -203,7 +308,7 @@ Measures of quality? How many videos do we lose for no face? Blinks? Low detecta
 
 ## Accessing the SaccadeJS dataset
 
-The dataset is published on Zenodo [LINKS]. It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial 4.0 International license (CC BY-NC 4.0).
+The dataset is published on Zenodo [LINKS]. \<GAP: which files: videos, frame records and the dataset summary. The frames are about 75 GB, over Zenodo's 50 GB default, so it needs the 200 GB quota increase\> It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial 4.0 International license (CC BY-NC 4.0). \<CHECK: that the license matches what participants were told ("a public dataset that researchers can use")\>
 
 # The SaccadeJS Gaze Model {#sec-model}
 
