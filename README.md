@@ -19,11 +19,19 @@ The PDF is written to `_output/paper.pdf`.
   - [ ] Do the contributions (main point of paper) come too late + is too brief? Should we have a larger chunk before section 1.1 describing the dataset + the model?
 - [ ] Section 2: The SaccadeJS Dataset
   - [ ] Recreate this figure in R and link it ![144 calibration points](<figures/calibration-points.png>)
+  - [ ] Getting per-frame metadata 
+- [ ] Section 3: 
+  - [ ] Include any experiments we run to improve the model, like size of the embedding vector
+- [ ] Section 6: Figure of error by FPS?
 
 ## Questions & Suggestions
 - Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
-- Is EyeSeeVC different from the saccadeJS evaluation dataset (N=1,950)?
+- Is EyeSeeVC different from the saccadeJS evaluation dataset (N=1,950)? Should we briefly introduce and explain what it is before it is referenced in the text?
 - For the SaccadeJS Dataset Prolific task, in the attention check trials, is there a maximum time the participant can wait in responding to the red color change before which it counts as a failed trial?
+- curious about whether there is more error in the points used for calibration (the 25 points) than the randomly chosen ones, and whether there is a pragmatic argument for calibrating exactly on the centers of AOIs
+- Figure 9C: why choose the block after calibration specifically?
+- The tests with how accuracy changes as no. of calibration points increases cap at go from 9->13->25 and shows steady improvement. Should we run tests with more points or is there a good reason to stop here
+- For the tests where calibration was redone every block was it the same set of calibration dots each time? 
 
 
 ## Data
