@@ -11,3 +11,6 @@ paper_cache/
 
 # research notes from code/data exploration
 notes/
+
+# stray output from R graphics devices
+Rplots.pdf

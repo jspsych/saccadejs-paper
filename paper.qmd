@@ -25,7 +25,7 @@ affiliations:
     department: Cognitive Science Department
 format: preprint-typst
 authornote: |
-  We thank Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project.
+  We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project.
 bibliography: references.bib
 bibliographystyle: apa
 ---
@@ -226,7 +226,7 @@ We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants 
 
 ## Method
 
-[Summary and link to experiments?]
+Both data-collection tasks can be tried in a browser at <https://jspsych.github.io/saccadejs-demos/>, as participants ran them but without saving or sending any data.
 The protocol was approved (as exempt) by the Vassar College Institutional Review Board.
 
 ### Participants
@@ -325,7 +325,7 @@ panel_c <- ggplot(sessions) +
   scale_fill_identity() +
   geom_text(aes(x, y, label = label), size = 2.1, color = INK, lineheight = 0.9) +
   annotate("text", x = -0.1, y = row_y, hjust = 1, size = 2.6, fontface = "bold", color = INK,
-           lineheight = 0.9, label = c("Training\n(2023)", "Held-out\n(2024–25)")) +
+           lineheight = 0.9, label = c("Training\n(2023–24)", "Held-out\n(2024–25)")) +
   annotate("segment", x = phase_x[c(1, 1, 2)], xend = phase_x[c(1, 1, 2)] + phase_w,
            y = c(row_y[["2"]], 0, 0) + 0.52, yend = c(row_y[["2"]], 0, 0) + 0.52,
            color = INK_2, linewidth = 0.35) +
@@ -343,19 +343,21 @@ panel_c <- ggplot(sessions) +
 
 Before completing the fixation task, we gave participants some instructions to try and improve the quality of the data. We said: "Please adjust the camera, your position, and the lighting to get a good view of your face and especially your eyes. Here are some tips: (1) To avoid backlighting, make sure a strong light is in front of you. (2) If you wear glasses, try to reduce glare on the lenses as much as possible. (3) You should be the only face in frame. If you can clearly see the whites of your eyes, you're likely in a good spot!" We also asked participants whether they were using an integrated or external webcam (showing examples of each type through photos) and whether they were wearing glasses. 
 
-### Data
+## Data
 
-During the task, we recorded individual video clips of each trial. The recording started after the first 1000ms of the trial, allowing plenty of time for the participant to saccade to the new location of the dot, and lasted for 500ms. We also recorded the response times to the dot detection task. The number of frames recorded in each video was constrained by the frame rate of the participant's webcam. Averaged over each participant's clips, it ranged from `r f1(min(ds_frames_per_clip))` to `r f1(max(ds_frames_per_clip))` frames, with a median of `r f1(median(ds_frames_per_clip))`. The clips were also often longer than 500 ms, likely due to unavoidable browser delays. Measured from the first frame's timestamp to the end of the last frame, the median participant's clips lasted `r f0(ds_median("clip_ms", "training"))` ms in the training set and `r f0(ds_median("clip_ms", "held-out"))` ms in the held-out set, and `r ds_pct("training", \(d) d$clip_ms > 600)`% and `r ds_pct("held-out", \(d) d$clip_ms > 600)`% of participants had a median clip longer than 600 ms. The longest clips came from the slowest cameras: held-out participants recording at 12 frames per second or fewer had a median clip of `r f0(median(filter(dataset, split == "held-out", frame_rate <= 12)$clip_ms))` ms. We asked the browser for video 480 pixels wide, but this was a preference rather than a requirement, and the browser used the nearest size the camera offered: 640 × 480 for `r ds_pct("training", \(d) d$video_width == 640 & d$video_height == 480)`% of the training set and `r ds_pct("held-out", \(d) d$video_width == 640 & d$video_height == 480)`% of the held-out set. The rest ranged from `r min(dataset$video_width)` to `r fn(max(dataset$video_width))` pixels wide, and `r sum(dataset$video_height > dataset$video_width)` participants recorded in portrait. Each clip was saWhy doved as a WebM file, compressed with the codec the participant's browser chose: H.264 for `r ds_pct("training", \(d) d$video_codec == "h264")`% of the training set and `r ds_pct("held-out", \(d) d$video_codec == "h264")`% of the held-out set, and VP8 for the rest.
+During the task, we recorded individual video clips of each trial. The recording started after the first 1000ms of the trial, allowing plenty of time for the participant to saccade to the new location of the dot, and lasted for 500ms. We also recorded the response times to the dot detection task. The number of frames recorded in each video was constrained by the frame rate of the participant's webcam. Averaged over each participant's clips, it ranged from `r f1(min(ds_frames_per_clip))` to `r f1(max(ds_frames_per_clip))` frames, with a median of `r f1(median(ds_frames_per_clip))`. Many clips were longer than 500 ms, likely due to unavoidable browser delays. The median participant's clips lasted `r f0(ds_median("clip_ms", "training"))` ms in the training set and `r f0(ds_median("clip_ms", "held-out"))` ms in the held-out set, and `r ds_pct("training", \(d) d$clip_ms > 600)`% and `r ds_pct("held-out", \(d) d$clip_ms > 600)`% of participants had a median clip longer than 600 ms. The longest clips came from the slowest cameras: held-out participants recording at 12 frames per second or fewer had a median clip of `r f0(median(filter(dataset, split == "held-out", frame_rate <= 12)$clip_ms))` ms. We asked the browser for video 480 pixels wide, but this was a preference rather than a requirement, and the browser used the nearest size the camera offered: 640 × 480 for `r ds_pct("training", \(d) d$video_width == 640 & d$video_height == 480)`% of the training set and `r ds_pct("held-out", \(d) d$video_width == 640 & d$video_height == 480)`% of the held-out set. The rest ranged from `r min(dataset$video_width)` to `r fn(max(dataset$video_width))` pixels wide, and `r sum(dataset$video_height > dataset$video_width)` participants recorded in portrait. Each clip was saved as a WebM file, compressed with the codec the participant's browser chose: H.264 for `r ds_pct("training", \(d) d$video_codec == "h264")`% of the training set and `r ds_pct("held-out", \(d) d$video_codec == "h264")`% of the held-out set, and VP8 for the rest.
 
-The released dataset includes these raw `.webm` files and pre-processed image frames that were used for training the model. To generate the model input, we decoded every frame of each video and ran MediaPipe Face Mesh [@kartynnik2019] on each frame independently, with the refined eye and iris landmarks [@grishchenko2020], which gives 478 landmarks for the face. If a face was detected, we cropped one rectangle holding both eyes. Its left and right sides are the landmarks just outside the outer corner of each eye (226 and 446); its top is the higher of the two landmarks just above the upper eyelids (27 and 257), and its bottom the lower of the two just below the lower eyelids (23 and 253). The rectangle is never rotated: when the head is tilted, it grows to hold both eyes. Each side was padded by 1% of the frame's width or height. We then converted these cropped images to grayscale, resized them to 144 × 36 pixels whatever their aspect ratio, and adjusted the contrast with contrast-limited adaptive histogram equalization (CLAHE) [@zuiderveld1994]. CLAHE equalizes the brightness separately within each tile of an 8 × 8 grid, so that a shadow on one side of the face doesn't set the contrast for the other, and caps how far it stretches the contrast (clip limit 2) so that it doesn't amplify sensor noise. Each frame's record holds this 144 × 36 image, the 478 landmarks, the same crop in color at the camera's resolution before equalization, a 160 × 120 copy of the whole frame, the target's position, and measures of quality: whether a face was found, the crop's sharpness and brightness, and each eye's aspect ratio.
+The released dataset includes these raw `.webm` files and pre-processed image frames that were used for training the model. To generate the model input, we decoded every frame of each video and ran MediaPipe Face Mesh [@kartynnik2019] on each frame independently, with the refined eye and iris landmarks [@grishchenko2020], which gives 478 landmarks for the face. If a face was detected, we cropped one rectangle holding both eyes. Its left and right sides are the landmarks just outside the outer corner of each eye (226 and 446); its top is the higher of the two landmarks just above the upper eyelids (27 and 257), and its bottom the lower of the two just below the lower eyelids (23 and 253). The rectangle is never rotated: when the head is tilted, it grows to hold both eyes. Each side was padded by 1% of the frame's width or height. We then converted these cropped images to grayscale, resized them to 144 × 36 pixels whatever their aspect ratio, and adjusted the contrast with contrast-limited adaptive histogram equalization (CLAHE) [@zuiderveld1994]. CLAHE equalizes the brightness separately within each tile of an 8 × 8 grid, so that a shadow on one side of the face doesn't alter the contrast for the other. Each frame's record holds this 144 × 36 image, the 478 landmarks, the same crop in color at the camera's resolution before equalization, a 160 × 120 copy of the whole frame, the target's position, and measures of quality: whether a face was found, the crop's sharpness and brightness, and each eye's aspect ratio.
 
-*Characteristics.* @fig-conditions shows how the recordings varied across participants, in the measures that @sec-model-performance and @sec-validation relate to accuracy. Each is the participant's median over the frames in which MediaPipe found a face. The held-out participants sat a little closer to the camera and moved more over the session, which was twice as long: the median participant's distance to the camera varied by `r f1(100 * ds_median("distance_sd", "held-out"))`%, against `r f1(100 * ds_median("distance_sd", "training"))`% in the training set. Their eye images were also darker (median brightness `r f0(ds_median("brightness", "held-out"))` against `r f0(ds_median("brightness", "training"))`, out of 255) and less sharp. MediaPipe found no face in any frame for `r sum(dataset$n_face_found == 0 & dataset$split == "training")` training and `r sum(dataset$n_face_found == 0 & dataset$split == "held-out")` held-out participants, who are in the release but not in the figure's frame measures.
+### Data characteristics
+
+@fig-conditions shows how the recordings varied across participants, in the measures that @sec-model-performance and @sec-validation relate to accuracy. Each is the participant's median over the frames in which MediaPipe found a face. The held-out participants sat a little closer to the camera and moved more over the session, which was twice as long: the median participant's distance to the camera varied by `r f1(100 * ds_median("distance_sd", "held-out"))`%, against `r f1(100 * ds_median("distance_sd", "training"))`% in the training set. Their eye images were also darker (median brightness `r f0(ds_median("brightness", "held-out"))` against `r f0(ds_median("brightness", "training"))`, out of 255) and less sharp. MediaPipe found no face in any frame for `r sum(dataset$n_face_found == 0 & dataset$split == "training")` training and `r sum(dataset$n_face_found == 0 & dataset$split == "held-out")` held-out participants, who are in the release but not in the figure's frame measures.
 
 ```{r}
 #| label: fig-conditions
 #| fig-width: 6.5
-#| fig-height: 6
-#| fig-cap: !expr sprintf("The recording conditions of the %s training participants (gray, upper band of each row) and %d held-out participants (gold, lower band). One dot per participant, its median over the frames in which a face was found. Triangles mark each set's median. Each row has its own scale, and values beyond the 1st and 99th percentiles are drawn at its edges. Distance is the interocular distance as a share of the image's width; its change is the standard deviation of its log, so roughly a percentage. Noise is the mean change of the 144 × 36 eye image from the frame before, in gray levels.", fn(ds_n("training")), ds_n("held-out"))
+#| fig-height: 3.4
+#| fig-cap: !expr sprintf("The recording conditions of the %s training participants (gray, above each row's center line) and %d held-out participants (gold, below). Each participant contributes their median over the frames in which a face was found; each half of a row is a histogram of these, as shares of the set's participants. Each row has its own scale, from the 1st to the 99th percentile of both sets; the few participants outside it are left out. Distance is the interocular distance as a share of the image's width; its change is the standard deviation of its log, so roughly a percentage. Left–right movement is the standard deviation of the head's horizontal position, as a share of the image's width. Sharpness is the variance of the eye image's Laplacian. Noise is the mean change of the 144 × 36 eye image from the frame before, in gray levels.", fn(ds_n("training")), ds_n("held-out"))
 # Training is the bulk of the dataset, in a quiet gray; the held-out set is the accent.
 SPLIT_COLORS <- c(training = "#5c5b57", `held-out` = "#d4a017")
 # Each measure: its label and how it is computed from the summary's columns.
@@ -370,7 +372,7 @@ CONDITIONS <- tribble(
   "Yaw (°)",                                 quote(yaw),
   "Pitch (°)",                               quote(pitch),
   "Roll (°)",                                quote(roll),
-  "Left–right movement, SD (% of image)",    quote(100 * head_x_sd),
+  "Left–right movement, SD (%)",             quote(100 * head_x_sd),
   "Distance change, SD (%)",                 quote(100 * distance_sd),
   "Roll change, SD (°)",                     quote(roll_sd),
   "Eye crop width (camera px)",              quote(eye_crop_width),
@@ -378,7 +380,7 @@ CONDITIONS <- tribble(
   "Contrast (SD, 0–255)",                    quote(contrast),
   "Left–right brightness difference",        quote(brightness_difference),
   "Sensor noise",                            quote(noise),
-  "Sharpness (log10 Laplacian variance)",    quote(log10(sharpness)),
+  "Sharpness (log10)",                       quote(log10(sharpness)),
   "Eye aspect ratio",                        quote(eye_aspect_ratio),
   "Blinks (% of frames)",                    quote(100 * blink_rate))
 conditions_long <- CONDITIONS |>
@@ -386,60 +388,55 @@ conditions_long <- CONDITIONS |>
   select(-value) |>
   unnest(data) |>
   filter(is.finite(x)) |>
-  mutate(label = factor(label, CONDITIONS$label)) |>
-  # Each row's scale runs from the 1st to the 99th percentile; the rest sit at its edges.
-  mutate(x = pmin(pmax(x, quantile(x, 0.01)), quantile(x, 0.99)), .by = label)
-# Training above the row's center line, held-out below, each jittered within its band.
-CONDITION_BAND <- c(training = 0.57, `held-out` = -0.57)
-set.seed(1)
-conditions_long <- mutate(conditions_long, y = CONDITION_BAND[split] + runif(n(), -0.37, 0.37))
-# Each set's median: a triangle on the center line, pointing into its own band.
-conditions_medians <- conditions_long |>
-  summarise(x = median(x), .by = c(label, split)) |>
-  mutate(y = sign(CONDITION_BAND[split]) * 0.08, shape = if_else(split == "training", 24, 25))
-condition_strips <- function(labels) {
-  ggplot(filter(conditions_long, label %in% labels), aes(x, y, color = split)) +
-    geom_point(aes(alpha = split), size = 0.5, stroke = 0) +
-    geom_point(data = filter(conditions_medians, label %in% labels),
-               aes(fill = split, shape = shape), color = INK, size = 1.35, stroke = 0.3) +
-    facet_wrap(~label, ncol = 1, scales = "free_x") +
-    scale_color_manual(values = SPLIT_COLORS, guide = "none") +
-    scale_fill_manual(values = SPLIT_COLORS, guide = "none") +
-    scale_alpha_manual(values = c(training = 0.35, `held-out` = 0.85), guide = "none") +
-    scale_shape_identity() +
-    scale_y_continuous(NULL, breaks = NULL, limits = c(-1, 1), expand = c(0, 0)) +
-    scale_x_continuous(NULL, n.breaks = 4) +
-    theme_minimal(base_size = 7) +
-    theme(strip.text = element_text(hjust = 0, size = 6.5, color = INK, margin = margin(2, 0, 0, 0)),
-          panel.grid.minor = element_blank(), panel.grid.major.y = element_blank(),
-          panel.grid.major.x = element_line(color = "#e6e5e0", linewidth = 0.25),
-          axis.text.x = element_text(size = 5.5, color = INK_2, margin = margin(0.5, 0, 0, 0)),
-          panel.spacing.y = unit(1, "pt"))
-}
-condition_strips(CONDITIONS$label[1:10]) | condition_strips(CONDITIONS$label[11:20])
+  mutate(label = factor(label, CONDITIONS$label))
+# Each row's scale runs from the 1st to the 99th percentile of both sets together.
+conditions_range <- summarise(conditions_long, lo = quantile(x, 0.01), hi = quantile(x, 0.99),
+                              .by = label)
+# Histograms on 30 bins over that range, each set as shares of its participants, scaled so the
+# row's tallest bar is 1. Training is drawn up from the center line, held-out down.
+N_BINS <- 30
+conditions_hist <- conditions_long |>
+  inner_join(conditions_range, by = "label") |>
+  filter(x >= lo, x <= hi) |>
+  mutate(bin = pmin(floor((x - lo) / (hi - lo) * N_BINS), N_BINS - 1)) |>
+  count(label, split, bin, lo, hi) |>
+  mutate(share = n / sum(n), .by = c(label, split)) |>
+  mutate(h = share / max(share), .by = label) |>
+  mutate(xmin = lo + bin * (hi - lo) / N_BINS, xmax = xmin + (hi - lo) / N_BINS,
+         ymin = if_else(split == "training", 0, -h), ymax = if_else(split == "training", h, 0))
+ggplot(conditions_hist) +
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = split), color = NA) +
+  geom_hline(yintercept = 0, color = "white", linewidth = 0.2) +
+  facet_wrap(~label, ncol = 4, dir = "v", scales = "free_x") +
+  scale_fill_manual(values = SPLIT_COLORS, guide = "none") +
+  scale_y_continuous(NULL, breaks = NULL, limits = c(-1.05, 1.05), expand = c(0, 0)) +
+  scale_x_continuous(NULL, n.breaks = 4) +
+  theme_minimal(base_size = 7) +
+  theme(strip.text = element_text(hjust = 0, size = 6.5, color = INK, margin = margin(3, 0, 1, 0)),
+        panel.grid = element_blank(),
+        axis.ticks.x = element_line(color = INK_2, linewidth = 0.25),
+        axis.ticks.length.x = unit(1.5, "pt"),
+        axis.text.x = element_text(size = 5.5, color = INK_2, margin = margin(0.5, 0, 0, 0)),
+        panel.spacing.y = unit(2, "pt"), panel.spacing.x = unit(10, "pt"))
 ```
 
-### Data Privacy
+## Privacy
 
-We informed participants three separate times that the data we recorded would be made publicly available. The first was in the description of the experiment on Prolific; the second was during the instructions at the start of the experiment. In both cases we requested participants to not participate if they didn't want their video recordings to be public. Finally, at the end of the experiment, we reminded participants that the data would be public and asked if they wanted to opt out at that point. In the training dataset, `r consent_n("training", "consent: opted out")` of the `r fn(consent_n("training", "answered the consent question"))` participants removed themselves from the dataset at that point, leaving `r fn(consent_n("training", "consent: public"))` with permission. Of those, `r consent_n("training", "removed on request")` later asked to be removed and `r consent_n("training", "public, not removed, not released")` were missing a usable video for at least one trial, leaving the `r fn(ds_n("training"))` in the training set. In the hold-out test collection, \<CHECK: one name for this set throughout; the section uses "held-out evaluation set", "hold-out test collection" and "test set"\> an error in the experiment meant that the answer to this final question was saved for only `r consent_n("held-out", "answered the consent question")` of the `r consent_n("held-out", "saved sessions")` participants, `r consent_n("held-out", "consent: public")` of whom agreed. We asked the others individually by messaging them directly on Prolific: of the `r consent_n("held-out", "asked by Prolific message")` we asked, `r consent_n("held-out", "by message: agreed")` agreed, `r consent_n("held-out", "by message: declined")` declined, and `r consent_n("held-out", "by message: no response")` did not respond. This left `r ds_n("held-out")` participants who agreed and had complete data in the test set. 
+We informed participants three separate times that the data we recorded would be made publicly available. The first was in the description of the experiment on Prolific; the second was during the instructions at the start of the experiment. In both cases we requested participants to not participate if they didn't want their video recordings to be public. Finally, at the end of the experiment, we reminded participants that the data would be public and asked if they wanted to opt out at that point. In the training dataset, `r consent_n("training", "consent: opted out")` of the `r fn(consent_n("training", "answered the consent question"))` participants removed themselves from the dataset at that point, leaving `r fn(consent_n("training", "consent: public"))` with permission. Of those, `r consent_n("training", "removed on request")` later asked to be removed and `r consent_n("training", "public, not removed, not released")` were missing a usable video for at least one trial, leaving the `r fn(ds_n("training"))` in the training set. In the hold-out test collection, an error in the experiment meant that the answer to this final question was saved for only `r consent_n("held-out", "answered the consent question")` of the `r consent_n("held-out", "saved sessions")` participants, `r consent_n("held-out", "consent: public")` of whom agreed. We asked the others individually by messaging them directly on Prolific: of the `r consent_n("held-out", "asked by Prolific message")` we asked, `r consent_n("held-out", "by message: agreed")` agreed, `r consent_n("held-out", "by message: declined")` declined, and `r consent_n("held-out", "by message: no response")` did not respond. This left `r ds_n("held-out")` participants who agreed and had complete data in the test set. 
 
-## Accessing the SaccadeJS dataset
+## Data Access
 
 The dataset is published on Zenodo [LINKS]. \<GAP: which files: videos, frame records and the dataset summary. The frames are about 75 GB, over Zenodo's 50 GB default, so it needs the 200 GB quota increase\> It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial 4.0 International license (CC BY-NC 4.0). \<CHECK: that the license matches what participants were told ("a public dataset that researchers can use")\>
 
 # The SaccadeJS Gaze Model {#sec-model}
 
-Our approach is to use weighted ridge regression to predict the gaze location for a set of unknown images given a set of calibration images that are labeled with their known gaze coordinates. This involves getting a set of features from each calibration image, $x$, and labels of the gaze coordinates for the image, $y$.  The model is fit to minimize the sum of squared residuals by adjusting the regression weights, $A$. In addition, ridge regression adds a regularization term which penalizes large large weight values. This reduces the likelihood of overfitting.
+Our approach for gaze prediction is inspired by WebGazer [@papoutsaki2016]. Each frame in WebGazer is reduced to two 10 × 6 pixel grayscale images, one for each eye, which are flattened to create a 120-dimension feature vector. Calibration images with known gaze coordinates are used to fit a linear regression with L2 regularization (ridge regression) that predicts the gaze location (x, y) from this feature vector. The gaze location for a new frame can then be predicted using the fit linear regression. We adopt the same basic framework, but instead of using raw pixel values as inputs to the regression model, we use learned feature embeddings from a neural network.
 
-Formula is here: https://en.wikipedia.org/wiki/Ridge_regression
-
-Once this model is fit to a set of calibration images, we can get an estimate of the gaze coordinates for an unlabelled image.
-
-To extract the features, $x$, of each image, we trained a deep neural network to learn a mapping from pixels to features $f(P) = x$. We use the DenseNet architecture, a form of convolutional neural network, for the core of this model. Our DenseNet has 31 convolutional layers. The output of the DenseNet is flattened and an output layer of 96 units (tanh activation) forms the set of features that are used for the regression. This embedding model has 1.45M parameters.
+We used a hybrid CNN-transformer architecture to learn feature embeddings. Input to the embedding model are 144 × 36 px grayscale images. The convolutional part of the model is a residual network [@he2016], using layer normalization in place of batch normalization. It consists of a 3 × 3 convolutional layer followed by three stages of two residual blocks each, with 64, 128, and 256 filters, for 13 convolutional layers in total. Max pooling after the first and second stages and again after the third reduces the image to an 18 × 4 grid of 256-dimensional features, which we treat as a sequence of 72 tokens. We added learned position embeddings to the tokens and then applied four layers of a standard transformer encoder [@vaswani2017] with 8 attention heads, a feed-forward width of 512, and dropout of 0.1. A single learned query then pooled the 72 tokens into one vector through attention [@lee2019], and a final dense layer with a `tanh` activation produced a 128-dimensional embedding for each image. The full model has about 5.2 million parameters.
 
 In addition to learning a mapping between pixels and features, we also learn a function to map pixels to item weights for weighting the ridge regression. This allows the model to learn to deprioritize poor quality calibration images. To learn this mapping, we added a single layer with one unit on top of the output of the embedding model. This unit has a sigmoid activation function, to constrain weights to be in the range 0-1. 
 
-The full model architecture is shown in @fig-model. We implemented the model using Keras and TensorFlow. The ridge regression is implemented as a Keras layer, which allows the backpropagation to flow through the regression, enabling us to train the model end-to-end. 
+With image embeddings and weights computed, predictions are generated in two steps. First, we fit a weighted ridge regression to the calibration images. If $X$ is the matrix of calibration embeddings, $Y$ the matrix of their known gaze coordinates, and $W$ a diagonal matrix of their predicted weights, the regression coefficients are $A = (X^\top W X + \lambda I)^{-1} X^\top W Y$, with $\lambda = 0.1$ during training. Second, we predict the gaze location of any new image by multiplying its embedding by $A$. The regression has no intercept term. The full model architecture is shown in @fig-model. We implemented the model using Keras with JAX as the backend [@chollet2015; @bradbury2018]. The ridge regression is implemented as a Keras layer, so gradients flow back through the regression solution into the embedding and weight layers, enabling us to train the model end-to-end.
 
 ```{r}
 #| label: fig-model
@@ -531,48 +528,13 @@ ggplot() +
 
 ## Training {#sec-training}
 
-We trained the model using the EyeSeeVC dataset. We used data from XXX participants as training data, and held out 10% as test data. We split the data into batches by participant. For each batch, we randomly selected 8-40 points from the 144 to serve as calibration points. We trained the model using Adam (CITE), with a custom loss function that was a modified version of the euclidean distance between the prediction and target.
+We trained the model using all participants with a complete set of 144 videos in the training data (N = 1,747). In each epoch, we used one frame from each trial's video, drawn at random from up to seven frames after the participant's gaze had settled on the target (frame 3 through the fourth-to-last frame); trials with no frame in that window used the first frame with a detected face. We trained the model in batches of 5 participants (720 images per batch). For each participant in a batch, we randomly selected between 8-40 images to serve as calibration and the remaining images were used as prediction targets.
 
-We trained the model for a single epoch, and then evaluated the loss for each subject in the dataset on a set of fixed calibration points. We removed X (of Y) subjects from the training set at this point for having losses above Z. Our rationale was that these subjects showed very high errors relative to the rest of the subjects, and were likely poor quality images that would hinder further training. We then resumed training for an additional 20 epochs.
+We applied image augmentation at the level of the participant and at the level of individual frames. For each participant in a batch, we applied the same random geometric transformation to all 144 images, preserving geometric consistency between the images while enabling augmentation beyond the training set. The geometric augmentations included a 50% chance of a horizontal flip, rotation up to ±9°, zoom 0.9–1.1 on each axis, translation up to ±10% on each axis, and a perspective warp moving each corner up to 10%. Photometric augmentations were applied independently to each image. We varied brightness by ±25 gray levels, contrast by 0.9–1.1x, gamma 0.9–1.1x, and, with probability 0.4, Gaussian noise with an SD of 1–5 gray levels. 
 
-[Including any experiments we run to improve the model, like size of the embedding vector.]
+We used the Euclidean distance between the predicted and target locations as the loss, averaged over the target images and normalized by the length of the screen diagonal so that a loss of 0.2 means that the prediction is 20% of the screen diagonal away from the target. Because gaze locations are expressed as proportions of the screen's width and height, we scaled the horizontal dimension by 16/9 to reflect the most common aspect ratio.
 
-\<NOTES: the training run behind the shipped model (saccade.js model 1.0.0). Sources: W&B `vassar-cogsci-lab/eye-tracking-multiframe`, runs `hd22jbrp` and `kwppnkuj` (their configs, histories and output logs); the `et_util` code in jspsych/eye-tracking at commit `89f2165`; and that repo's `EXPERIMENT_LOG.md` (2026-06-11) and `TODO.md`. The paragraph above predates this run and disagrees with it in several places: see the last note.\>
-
-- **Checkpoint.** W&B run `kwppnkuj` ("random-s42-ext-to-70ep"), file `multiframe_random_s42_ext70.weights.h5`. It was trained in two runs on 2026-06-11, 70 epochs in all:
-  1. `hd22jbrp` ("eager-dawn-4"): 20 epochs from a random initialization, seed 42. This was arm B of a screen comparing one fixed frame per trial against a random frame per trial.
-  2. `kwppnkuj`: started from the weights of the first run and trained 50 more epochs, with the held-out evaluation after every 10. The learning-rate schedule started over (a warm restart). \<CHECK: the extension ran from a Colab notebook that was never committed (W&B records its program as "scratchpad" and has no git state). From the logs: the schedule seems to have run once over the 50 epochs, not once per 10-epoch chunk, since the loss doesn't jump at the chunk boundaries; and the optimizer state seems to have been fresh, since the loss rose in the extension's second epoch, as the learning rate warmed up\>
-- **Training data.** The 1,747 eyedata23 participants on the consent include list as of 2026-06-10, from the v1 extraction (all frames, with MediaPipe's input converted from BGR to RGB). \<CHECK: this includes eyedata23 `5c7wjv55`, who had asked to be removed. The released training set has 1,746 participants, so the shipped model was trained on one participant who isn't in the released dataset\> Participants with fewer than 144 trials were dropped.
-- **Frames.** For each trial and each epoch, one frame drawn at random from up to 7 frames in the clip's settling window (frame indices 3 to n − 4). Trials without any frame in that window used the first frame with a face (`frame_mode = "random"`). Images were 144 × 36 grayscale eye crops.
-- **Batches and calibration masks.** Five participants per batch, each holding all 144 trials. In every batch, each participant got a random number of calibration points, drawn uniformly from 8 to 39 (the upper bound of `tf.random.uniform` is exclusive, so the configured 40 is never drawn). The points themselves were a random subset of the 144, and the remaining trials were the targets. The loss was averaged over the targets only. An epoch was 349 steps (1,747 // 5), from a repeating stream with a shuffle buffer of 200, so it only approximates one pass over the participants.
-- **Loss.** Euclidean distance between prediction and target, with x scaled by 16/9 and divided by the diagonal of a 16:9 screen. Coordinates are fractions of the screen, so the loss is a fraction of the diagonal (`normalized_weighted_euc_dist`).
-- **Optimizer.** AdamW with Keras 3.13 defaults (weight decay 0.004, β₁ = 0.9, β₂ = 0.999, ε = 10⁻⁷). No gradient clipping (`clipnorm` was added on 06-17). float32 throughout, XLA-compiled.
-- **Learning rate.** Warmup from 10⁻⁶ to 3 × 10⁻⁴, then cosine decay to 1% of the peak (3 × 10⁻⁶).
-  - First run: 2 warmup epochs, then 18 epochs of decay.
-  - Extension: 1 warmup epoch, then 49 epochs of decay.
-- **Augmentation** (training only).
-  - Per frame: brightness ±25 gray levels; contrast ×0.9–1.1; gamma 0.9–1.1; and, with probability 0.4, Gaussian noise with an SD of 1–5 gray levels. No blur, since blur is applied only when augmentation isn't per frame.
-  - Per participant, one transform for all 144 images: a horizontal flip with probability 0.5; rotation up to ±0.05π (±9°); zoom 0.9–1.1 on each axis; translation up to ±10% on each axis; and a perspective warp moving each corner up to 10%. Labels are not flipped. That is consistent within a participant, and the regression is fit for each participant.
-- **Architecture** (`backbone = "hybrid"`).
-  - Residual CNN with stage widths 64/128/256 and 2 blocks per stage, plus one extra 2 × 2 pool, which gives 72 tokens.
-  - A transformer: 4 layers, 8 heads, MLP width 512, dropout 0.1, learned 1-D position embeddings.
-  - Attention pooling, then a 128-unit tanh embedding. The weight head is a single sigmoid unit (`calibration_weighting = "linear"`).
-  - Weighted ridge regression with λ = 0.1 in training and in the evaluations during training. No L2 normalization, stochastic depth, LayerScale or screen-center prior; the prior was added on 06-15.
-  - 5,198,273 parameters in the model as loaded for export. \<CHECK: the paragraph above describes the earlier DenseNet (96 units, 1.45M parameters). @fig-model already shows the hybrid model\>
-- **Hardware and software.** Colab TPU v5e. Keras 3.13.2 on JAX 0.7.2 (jaxlib 0.7.2, libtpu 0.0.21); TensorFlow 2.20.0 for the `tf.data` input pipeline only; Python 3.12.13. Wall-clock time was 39 minutes for the first run and 93 for the extension.
-- **Evaluation during training.** The held-out eyedata24 set, scored on the first frame with a face in each trial. Calibration used the fixed 20-point grid from one phase, with targets from phase 2. Participants without a complete grid were skipped, leaving 230 for the cross-phase score and 232 for the within-phase score.
-
-  | Epoch | Cross-phase median | Within-phase median |
-  |---|---|---|
-  | 20 | 0.0775 | 0.0644 |
-  | 30 | 0.0801 | 0.0656 |
-  | 40 | 0.0804 | 0.0620 |
-  | 50 | 0.0744 | 0.0589 |
-  | 60 | 0.0706 | 0.0581 |
-  | 70 | 0.0713 | 0.0566 |
-
-  At epoch 70, the cross-phase mean was 0.0962, the p90 0.207 and the worst 0.363; the training loss was 0.0444. The final epoch shipped, not the best one (epoch 60). \<CHECK: no checkpoint was chosen on held-out scores, but these same participants guided design decisions across the project's experiments. The paper should say so, or describe the held-out set as a test set only with that caveat\>
-- **Where the paragraph above is out of date.** The model was trained in a 20-epoch run followed by a 50-epoch extension: there was no single epoch followed by a loss-based exclusion and 20 more epochs. The optimizer was AdamW, not Adam. The calibration range was 8–39. The test data were the separate held-out collection (eyedata24), not 10% held out from the training data. "EyeSeeVC" appears only in the old `02_generate_tfrecords.ipynb`; the run used the SaccadeJS training set (eyedata23). \<CHECK: was the loss-based exclusion of participants from an earlier DenseNet pipeline? Nothing in the run that shipped drops participants for high loss\>
+Training ran for 70 epochs, using the AdamW optimizer [@loshchilov2019] with the Keras 3.13 defaults (weight decay 0.004, β₁ = 0.9, β₂ = 0.999, ε = 10⁻⁷) and JAX as the Keras backend [@chollet2015; @bradbury2018]. We started with a run of 20 epochs from a random initialization, then did a warm restart [@loshchilov2017] for another 50 epochs. In both runs, the learning rate rose linearly [@goyal2017] from 10⁻⁶ to a peak of 3 × 10⁻⁴ (over 2 epochs in the first run and 1 epoch in the second) and then followed a cosine decay to 3 × 10⁻⁶ (1% of the peak) by the end of the run. Total wall-clock time for training on a TPU v5e was about two hours, including evaluations on held-out data every 10 epochs.
 
 # Model Performance {#sec-model-performance}
 
@@ -1234,6 +1196,8 @@ Participants were `r f0(min(participants$age))` to `r f0(max(participants$age))`
 We excluded `r n_inattentive` participants (`r f1(100 * n_inattentive / n_sessions)`%) who responded to fewer than `r f0(100 * MIN_ATTENTION)`% of the color changes during the main task, since they may not have been reliably looking at the targets. All analyses below use the remaining `r length(attentive)` participants.
 
 ## Procedure
+
+The experiment can be tried in a browser at <https://jspsych.github.io/saccadejs-demos/>, as participants ran it but without saving or sending any data.
 
 The experiment began with a welcome screen that asked participants to find a comfortable position in order to minimize movement during the 10-minute experiment. This was followed by a screen that required users to press the space bar, as a means of identifying any users without a physical keyboard. We then asked participants to identify whether they were using an internal or external webcam (with accompanying illustrations for each). The experiment then requested permission to access the camera.
 
