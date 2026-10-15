@@ -36,7 +36,7 @@ It is a second file in the same Zenodo record as the validation dataset, so the 
 
 ### Dataset summary
 
-Sections 1 and 2 describe the SaccadeJS dataset from `saccadejs-dataset-summary.tar` (about 450 KB): one row per released participant, with their video format and median recording conditions (`participants.csv`) and counts from each recorded session to the released dataset (`consent.csv`), with no identifiers. It is built by `analysis/build_dataset_summary.py` in jspsych/eye-tracking from the raw session data, and found like the evaluation dataset: `SACCADEJS_SUMMARY_DATA`, then `../eye-tracking/data/saccadejs-dataset-summary`, then `data/saccadejs-dataset-summary`, downloaded from the same Zenodo record and checked against `SUMMARY_ZENODO_MD5`.
+Sections 1 and 2 describe the SaccadeJS dataset from `saccadejs-dataset-summary.tar` (about 450 KB): one row per released participant, with their video format and median recording conditions (`participants.csv`) counts from each recorded session to the released dataset (`consent.csv`), and counts of the released participants' Prolific demographics (`demographics.csv`), with no identifiers. It is built by `analysis/build_dataset_summary.py` in jspsych/eye-tracking from the raw session data, and found like the evaluation dataset: `SACCADEJS_SUMMARY_DATA`, then `../eye-tracking/data/saccadejs-dataset-summary`, then `data/saccadejs-dataset-summary`, downloaded from the same Zenodo record and checked against `SUMMARY_ZENODO_MD5`.
 
 ### The GitHub Action
 

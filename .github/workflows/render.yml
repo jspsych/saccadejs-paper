@@ -57,7 +57,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: data/saccadejs-dataset-summary
-          key: zenodo-23213276-summary-d0729866477a5c64f04c3599b63dcc32
+          key: zenodo-23213276-summary-333454a8416739489bca465fb8ab99b3
 
       # knitr's chunk cache, so a push that leaves the replays' code and data alone skips them.
       # The key changes with the paper and R code, so each such push saves a new cache; on a
