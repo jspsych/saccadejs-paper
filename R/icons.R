@@ -105,6 +105,20 @@ INCHES_PER_UNIT <- 0.28
 # the blur's spread, in drawing units. It is rendered at the size it is printed, so its line
 # widths match the icons drawn as polygons.
 blurred_part <- function(drawing, width, height, sigma, pixels_per_unit = 400) {
+  bitmap <- render_bitmap(drawing, width, height, pixels_per_unit)
+  raster_part(magick::image_blur(bitmap, radius = 0, sigma = sigma * pixels_per_unit), width, height)
+}
+
+# The same, but coarsely sampled, `pixels_across` pixels wide: for an image from few camera pixels.
+pixelated_part <- function(drawing, width, height, pixels_across, pixels_per_unit = 400) {
+  bitmap <- render_bitmap(drawing, width, height, pixels_per_unit)
+  info <- magick::image_info(bitmap)
+  coarse <- magick::image_scale(bitmap, paste0(pixels_across, "x"))
+  raster_part(magick::image_sample(coarse, paste0(info$width, "x", info$height, "!")), width, height)
+}
+
+# A drawing as a bitmap covering `width` x `height` around (0, 0).
+render_bitmap <- function(drawing, width, height, pixels_per_unit) {
   bitmap <- magick::image_graph(width = round(width * pixels_per_unit),
                                 height = round(height * pixels_per_unit), bg = "white",
                                 res = pixels_per_unit / INCHES_PER_UNIT)
@@ -114,9 +128,12 @@ blurred_part <- function(drawing, width, height, sigma, pixels_per_unit = 400) {
           theme_void() +
           theme(plot.margin = margin(0, 0, 0, 0)))
   dev.off()
-  blurred <- magick::image_blur(bitmap, radius = 0, sigma = sigma * pixels_per_unit)
+  bitmap
+}
+
+raster_part <- function(bitmap, width, height) {
   tibble(x = c(-width, width) / 2, y = c(-height, height) / 2, kind = "raster",
-         image = list(as.raster(blurred)))
+         image = list(as.raster(bitmap)))
 }
 
 # ------------------------------------------------------------------ eye images
@@ -190,6 +207,12 @@ blurred_eye_image <- function() {
     patch_border())
 }
 
+# An eye from few camera pixels: the eye image, coarsely sampled, inside a crisp patch border.
+pixelated_eye_image <- function(pixels_across = 22) {
+  c(list(pixelated_part(c(skin_patch(), eye_image(background = FALSE)), 1.1, 0.62, pixels_across)),
+    patch_border())
+}
+
 # An eye with sensor noise: speckles of random gray over the image.
 noisy_eye_image <- function() {
   set.seed(4)
@@ -242,11 +265,12 @@ face_drawing <- function(scale = 1, degrees = 0, nod = 0, turn = 0) {
 }
 
 # Two faces side by side: the same head at two moments, for how much it moved over the session.
-# `scales` sets each face's size (nearer or farther from the camera), `degrees` each one's tilt.
-face_pair <- function(scales = c(1, 1), degrees = c(0, 0)) {
+# `scales` sets each face's size (nearer or farther from the camera), `degrees` each one's tilt,
+# and `dx` and `dy` where each one sits.
+face_pair <- function(scales = c(1, 1), degrees = c(0, 0), dx = c(-0.27, 0.27), dy = c(0, 0)) {
   base <- 0.68
-  c(face_drawing(scale = base * scales[1], degrees = degrees[1]) |> shift(-0.27, 0),
-    face_drawing(scale = base * scales[2], degrees = degrees[2]) |> shift(0.27, 0))
+  c(face_drawing(scale = base * scales[1], degrees = degrees[1]) |> shift(dx[1], dy[1]),
+    face_drawing(scale = base * scales[2], degrees = degrees[2]) |> shift(dx[2], dy[2]))
 }
 
 # Where the head was during calibration: a faint, dashed outline. Drift icons draw it behind the
@@ -274,6 +298,17 @@ clock <- function(minutes_fraction) {
   c(list(fill_part(rim$x, rim$y, fill = "white", color = ICON_INK, linewidth = 0.4)), sweep, ticks,
     list(line_part(c(0, 0.2 * sin(hand_angle)), c(0, 0.2 * cos(hand_angle)), linewidth = 0.6),
          circle_part(0, 0, 0.02, fill = ICON_INK)))
+}
+
+# A strip of film with `n` frames: how many frames the camera records each second.
+film_strip <- function(n) {
+  gap <- 0.03
+  frame_width <- (1 - gap * (n + 1)) / n
+  frames <- map(seq_len(n), \(i) {
+    rect_part(-0.5 + gap + (i - 0.5) * frame_width + (i - 1) * gap, 0, frame_width, 0.2,
+              fill = "white")
+  })
+  c(list(rect_part(0, 0, 1, 0.3, fill = ICON_INK)), frames)
 }
 
 # A meter: a bar filled to `level`, from 0 to 1.
@@ -318,6 +353,14 @@ condition_icon <- function(covariate) {
     "head roll SD" = list(low = face_pair(degrees = c(4, -4)), high = face_pair(degrees = c(25, -25))),
     # Positive pitch is the head tipped up (see the pitch check in the paper's covariates chunk).
     "head pitch" = list(low = face_drawing(nod = -1), high = face_drawing(nod = 1)),
+    # How far the head turned from facing the camera, either way.
+    "head yaw" = list(low = face_drawing(), high = face_drawing(turn = 1)),
+    # How much the head moved over the session, side to side or up and down: the same head at two
+    # moments, close together or far apart.
+    "head position SD, left–right" = list(low = face_pair(dx = c(-0.2, 0.2)),
+                                          high = face_pair(dx = c(-0.38, 0.38))),
+    "head position SD, up–down" = list(low = face_pair(dy = c(0.02, -0.02)),
+                                       high = face_pair(dy = c(0.13, -0.13))),
     # Within participants: what changed since calibration, frame by frame.
     "head shift" = list(low = drifted_face(), high = c(calibration_outline(), face_drawing() |> shift(0.2, 0.05))),
     # A size either way; drawn as moving away, so the calibration outline shows around the head.
@@ -329,6 +372,10 @@ condition_icon <- function(covariate) {
     "eye brightness change" = list(low = brightness_since_calibration(0),
                                    high = brightness_since_calibration(0.35)),
     "model quality weight" = list(low = meter(0.25), high = meter(0.9)),
+    "model calibration weight" = list(low = meter(0.25), high = meter(0.9)),
+    "camera frame rate" = list(low = film_strip(3), high = film_strip(8)),
+    # How many camera pixels the eye crop spans.
+    "eye crop width" = list(low = pixelated_eye_image(), high = eye_image()),
     stop("No icon for condition: ", covariate))
 }
 
@@ -359,4 +406,32 @@ icon_panel <- function(covariates, rows, n_rows = max(rows)) {
                  color = ICON_LINE, linewidth = 0.3, arrow = arrow(length = unit(0.035, "in"))) +
     coord_fixed(xlim = c(0, ICON_WIDTH), ylim = c(0.5, n_rows + 0.5), expand = FALSE) +
     theme_void()
+}
+
+# ------------------------------------------------------------------ calibration grids
+
+# A strip of calibration-grid icons to sit under a plot with one discrete x position per grid:
+# each grid's points (`positions`, a list of two-column matrices of screen percents) inside the
+# outline of a 16:9 screen, centered under its x position. `width` and `height` are the screen's
+# size in x positions and in the strip's own units; `labels` go under the icons as the x axis.
+# The points are drawn `inset` of the way in from the screen's edges, so points at the edge stay
+# clear of the outline.
+grid_icon_strip <- function(positions, labels, width = 0.78, height = 1, inset = 0.1) {
+  screens <- tibble(i = seq_along(positions))
+  spread <- 1 - 2 * inset
+  points <- imap(positions, \(m, i) tibble(x = i + (m[, 1] / 100 - 0.5) * spread * width,
+                                           y = (0.5 - m[, 2] / 100) * spread * height)) |>
+    list_rbind()
+  ggplot() +
+    geom_rect(data = screens, aes(xmin = i - width / 2, xmax = i + width / 2,
+                                  ymin = -height / 2, ymax = height / 2),
+              fill = "white", color = ICON_LINE, linewidth = 0.3) +
+    geom_point(data = points, aes(x, y), size = 0.35, stroke = 0, color = ICON_INK) +
+    scale_x_continuous(breaks = seq_along(positions), labels = labels) +
+    # A discrete axis's range, 0.6 beyond the first and last positions, so the icons line up with
+    # the plot above (which needs coord_cartesian(xlim = c(1, n)) to ignore its own jitter).
+    coord_cartesian(xlim = c(0.4, length(positions) + 0.6), ylim = c(-height, height) * 0.56,
+                    expand = FALSE) +
+    theme(panel.grid = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank(),
+          axis.ticks = element_blank(), axis.line = element_blank())
 }

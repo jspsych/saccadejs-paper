@@ -45,12 +45,19 @@ jobs:
           path: data/saccadejs-validation
           key: zenodo-23213276-6ecdcb53c34748d6ec53ecd27a2e2f3d
 
-      # The model evaluation dataset (~245 MB), a second file in the same record, cached the same way.
+      # The model evaluation dataset (~255 MB), a second file in the same record, cached the same way.
       - name: Restore evaluation dataset from cache
         uses: actions/cache@v6
         with:
           path: data/saccadejs-eval
-          key: zenodo-23213276-eval-a90fa7c46c9631cf28b4fd3f5ab29bc5
+          key: zenodo-23213276-eval-5ba002707937c99ff9a6b2d25e9c72f1
+
+      # The dataset summary (~450 KB), a third file in the same record.
+      - name: Restore dataset summary from cache
+        uses: actions/cache@v6
+        with:
+          path: data/saccadejs-dataset-summary
+          key: zenodo-23213276-summary-d0729866477a5c64f04c3599b63dcc32
 
       # knitr's chunk cache, so a push that leaves the replays' code and data alone skips them.
       # The key changes with the paper and R code, so each such push saves a new cache; on a
