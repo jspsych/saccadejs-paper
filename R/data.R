@@ -96,13 +96,14 @@ eval_data_dir <- function() {
 
 # Finding the dataset summary: who is in the SaccadeJS dataset and how they got there, without
 # identifiers, built by analysis/build_dataset_summary.py in jspsych/eye-tracking. It holds
-# participants.csv (one row per released participant, both collections) and consent.csv (counts
-# from a saved session to a released participant). Found as for the evaluation dataset, with
+# participants.csv (one row per released participant, both collections), consent.csv (counts
+# from a saved session to a released participant) and demographics.csv (counts of the released
+# participants' Prolific demographics). Found as for the evaluation dataset, with
 # SACCADEJS_SUMMARY_DATA, then ../eye-tracking/data/saccadejs-dataset-summary, then
 # data/saccadejs-dataset-summary, downloaded from the same Zenodo record.
 
 SUMMARY_ZENODO_FILE <- "saccadejs-dataset-summary.tar"
-SUMMARY_ZENODO_MD5 <- "d0729866477a5c64f04c3599b63dcc32"
+SUMMARY_ZENODO_MD5 <- "333454a8416739489bca465fb8ab99b3"
 SUMMARY_DATASET_NAME <- "saccadejs-dataset-summary"
 
 summary_data_dir <- function() {
