@@ -121,6 +121,10 @@ consent <- read_csv(file.path(summary_dir, "consent.csv"), show_col_types = FALS
 demographics <- read_csv(file.path(summary_dir, "demographics.csv"), show_col_types = FALSE)
 # A whole number for the text, with thousands separated by commas.
 fn <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+# A large number for the text, rounded to one decimal of millions or billions.
+fn_short <- function(x) {
+  if (x >= 1e9) paste0(f1(x / 1e9), "B") else if (x >= 1e6) paste0(f1(x / 1e6), "M") else fn(x)
+}
 # One step's count in one collection, e.g. consent_n("training", "consent: opted out").
 consent_n <- function(which, step) {
   value_of(consent, n, collection == c(training = "eyedata23", `held-out` = "eyedata24")[[which]],
@@ -211,6 +215,7 @@ There are several public datasets available for training gaze prediction models 
 | TabletGaze [@huang2017] | 51 | 816 videos | 16 videos | | ✓ | ✓ | |
 | EVE [@park2020] | 54 | 12.3M^d^ | 228,000^d^ | | | ✓ | ✓ |
 | WEyeDS [@evdokimov2024] | 54 | | | ✓ | ✓ | ✓ | ✓ |
+| **SaccadeJS** | **`r fn(ds_n())`** | **`r fn_short(ds_sum("n_frames"))`** | **`r fn(round(ds_sum("n_frames") / ds_n()))`** | **✓** | **✓** | **✓** | **✓** |
 
 : Public gaze prediction datasets that are usable for training webcam-based models, with features that are critical for the use case of behavioral research. Some datasets reported in the literature are no longer available and are not included. +: a subset of the data meets this condition. ^a^The frames in which a face and both eyes were detected, from 1,471 participants, of 2.4M frames in total. ^b^94 sessions of 2–3 minutes, recorded with a Kinect and an HD camera. ^c^Includes 18 images of the same person and condition, from 18 different cameras. ^d^Frames from four synchronized cameras, three of them webcams. {#tbl-datasets}
 
@@ -222,7 +227,9 @@ With the goal of facilitating the development of open-source, webcam-based eyetr
 
 # The SaccadeJS Dataset
 
-We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants looking at fixed targets on a laptop or desktop display. The dataset contains `r fn(ds_sum("n_trials"))` videos, `r ds_trials_per_person("training")` per person for the `r fn(ds_n("training"))` participants in the training set and `r ds_trials_per_person("held-out")` per person for the `r ds_n("held-out")` participants in the held-out evaluation set, for a total of `r fn(ds_sum("n_frames"))` image frames. To date, this is the largest open dataset for training gaze prediction models. \<GAP: needs a comparison and citation, e.g. GazeCapture (Krafka et al., 2016: 1,474 participants, ~2.5M frames). Also say what form the frames are released in: full video, or the eye crops and landmarks in the frame records\> 
+We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants looking at fixed targets on a laptop or desktop display. The dataset contains `r fn(ds_sum("n_trials"))` videos, `r ds_trials_per_person("training")` per person for the `r fn(ds_n("training"))` participants in the training set and `r ds_trials_per_person("held-out")` per person for the `r ds_n("held-out")` participants in the held-out evaluation set, for a total of `r fn(ds_sum("n_frames"))` image frames. To our knowledge, this is the largest open dataset for training gaze prediction models in terms of number of participants, collecting 529 more participants and yielding more than double the number of usable image frames than the next runner-up GazeCapture (@tbl-datasets).
+
+\<GAP: needs a comparison and citation, e.g. GazeCapture (Krafka et al., 2016: 1,474 participants, ~2.5M frames). Also say what form the frames are released in: full video, or the eye crops and landmarks in the frame records\> 
 
 ## Method
 
