@@ -173,19 +173,6 @@ stopifnot(setequal(eval_ids, dataset$participant[dataset$split == "held-out"]))
 
 **TODO:** This is copy-and-pasted from the grant submission. Need to trim the fat.
 
-|
-What is the problem and why is it important?
-- Why is eye tracking an important methodological tool?
-- Why do we need webcam-based eye tracking? 
-
-What work has been done to address the problem already, and what are the limitations of that work?
-- What are current webcam-based eye tracking systems capable of? 
-
-What are you doing differently that will address one or more of those limitations
-- Contributions
-|
-v
-
 ## Why is eye tracking an important methodological tool?
 
 Eye tracking is widely used across experimental psychology to study attention [@posner1980], perception [@henderson1999], language comprehension and reading (Rayner, 1998), cognition (e.g. Hollingworth & Henderson, 2002), and more [CITE]. The method is uniquely appealing because eye movements seem to be deeply intertwined with mental processes (Just & Carpenter, 1980). Knowing where people are looking tells us more than what they might be seeing; it tells us something about what they are thinking. This is especially influential in fields where other kinds of responses (e.g., language, response times, etc.) are hard to measure. For example, developmental psychologists use eye movements to study language learning (Lew-Williams & Fernald, 2007; Lukyanenko & Fisher, 2016; Meylan et al., 2025), perceptual & conceptual organization (Aslin & Smith, 1988; Bergelson & Swingley, 2012; Kunin et al., 2024), social awareness (Thomas et al., 2022), intuitive physics (Kim & Spelke 1999) and numerical reasoning (Feigenson & Halberda, 2004) in children who may be too young for experimental designs that measure sophisticated verbal or tactile responses.
