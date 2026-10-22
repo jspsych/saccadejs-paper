@@ -16,3 +16,9 @@ format:
       x: 1in
       y: 1in
     section-numbering: "1.1"
+    # Tables in a slightly smaller type, left-aligned and wrapping at spaces rather than mid-word,
+    # so headers like "Per person" break between the words.
+    include-in-header:
+      text: |
+        #show table: set text(size: 9pt, hyphenate: false)
+        #show table: set par(justify: false)
