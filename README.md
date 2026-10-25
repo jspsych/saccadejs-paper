@@ -19,7 +19,7 @@ The PDF is written to `_output/paper.pdf`.
   - [x] Do the contributions (main point of paper) come too late + is too brief? Should we have a larger chunk before section 1.1 describing the dataset + the model?
 - [ ] Section 2: The SaccadeJS Dataset
   - [x] ~~Recreate this figure in R and link it ![144 calibration points](<figures/calibration-points.png>)~~
-  - [ ] Getting per-frame metadata 
+  - [ ] Get per-frame metadata. How should we analyze these?
 - [ ] Section 3: 
   - [ ] Include any experiments we run to improve the model, like size of the embedding vector
 - [ ] Section 6: Figure of error by FPS?

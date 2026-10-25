@@ -2428,6 +2428,31 @@ encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
   plot_annotation(tag_levels = "A")
 ```
 
+@fig-frames shows each participant's median error against the number of frames scored at each fixation.
+
+```{r}
+#| label: fig-frames
+#| fig-cap: "Each participant's median error after one 25-point calibration, as in @fig-forward, against the median number of frames scored at each fixation (the 1,000 ms after the target settled). Both trackers score the same frames. Lines are a smooth trend per tracker."
+#| fig-width: 4.5
+#| fig-height: 3.2
+# Per participant: the median number of scored frames per fixation, on the same frames and
+# calibration as the accuracy results, and each tracker's median error. Both trackers score the
+# same frames, so the count is the same for both.
+frames_error <- fwd_frames |>
+  summarise(n_frames = n(), .by = c(session, tracker, station)) |>
+  summarise(n_frames = median(n_frames), .by = c(session, tracker)) |>
+  inner_join(summarise(fwd_frames, error = median(error), .by = c(session, tracker)),
+             by = c("session", "tracker"))
+
+ggplot(frames_error, aes(n_frames, error, color = tracker)) +
+  geom_point(size = 0.9, alpha = 0.45, stroke = 0) +
+  geom_smooth(method = "loess", formula = y ~ x, span = 1, se = FALSE, linewidth = 0.8) +
+  scale_color_manual(values = TRACKER_COLORS) +
+  scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50)) +
+  labs(x = "Frames scored per fixation (median)",
+       y = "Median error\n(% of diagonal, log scale)")
+```
+
 # Conclusion
 
 SaccadeJS offers substantial improvement in the accuracy and precision of real-time eye tracking for browser-based experiments. Researchers can use SaccadeJS to reliably distinguish between much smaller AOIs than WebGazer, enabling online eye tracking research to move beyond designs with halves and quadrants. Furthermore, with a brief temporal calibration, the accuracy of webcam timestamps can be improved to the point where the major limiting temporal factor is the sampling rate of the webcam instead of synchronization. Previous studies with WebGazer found that effects appeared later than the same effects measured in the lab [@prystauka2024; @slim2024].
