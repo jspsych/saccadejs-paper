@@ -322,7 +322,7 @@ ridge <- function(X, Y, penalty) {
   solve(crossprod(X) + penalty * diag(ncol(X)), crossprod(X, Y))
 }
 
-# SaccadeJS, as it ships: one row per calibration point, the mean of its frames' embeddings
+# SaccadeJS's "points" fit, its default up to version 0.3: one row per calibration point, the mean of its frames' embeddings
 # weighted by the model's per-frame quality score, mapped to the target as a viewport fraction
 # centered on 0.5. The penalty is 3 for nine distinct points or fewer, otherwise 1. If every frame
 # of a point scored about zero, the plain mean is used, as grids.ts does.
@@ -342,9 +342,11 @@ fit_saccade_mean <- function(train) {
   ridge(X * row_scale, Y * row_scale, penalty)
 }
 
-# SaccadeJS, the per-frame alternative: every calibration frame is its own row, weighted by its
-# quality score rescaled to mean 1 (plain weights for a point whose frames all scored about
-# zero), with an unpenalized intercept. The frames of one look differ while gaze does not, which
+# SaccadeJS as it ships (fitRidge in grids.ts, its default "frames" fit): every calibration frame
+# is its own row, weighted by its quality score rescaled to mean 1 (plain weights for a point
+# whose frames all scored about zero), mapped to the target as a viewport fraction centered on
+# 0.5. The center is a fixed intercept, not an estimated one, so a fit with little to go on falls
+# back toward the middle of the screen. The frames of one look differ while gaze does not, which
 # tells the fit which embedding directions are noise.
 fit_saccade_frames <- function(train, penalty = FRAMES_PENALTY) {
   X <- stack_rows(map(train, "embeddings"))
@@ -353,17 +355,13 @@ fit_saccade_frames <- function(train, penalty = FRAMES_PENALTY) {
     map(\(s) if (sum(s$weights) > 1e-6) s$weights else rep(1, length(s$weights))) |>
     list_c()
   weights <- weights / mean(weights)
-
-  # Center on the weighted means, so the intercept is not penalized.
-  x_mean <- colSums(X * weights) / sum(weights)
-  y_mean <- colSums(Y * weights) / sum(weights)
-  row_scale <- sqrt(weights)
-  B <- ridge(subtract_point(X, x_mean) * row_scale, subtract_point(Y, y_mean) * row_scale, penalty)
-  # The intercept rides along as an extra row, which predict_saccade_px recognizes.
-  rbind(B, intercept = y_mean - drop(x_mean %*% B))
+  # solveRidge scales each row by sqrt(weight + 1e-7).
+  row_scale <- sqrt(weights + 1e-7)
+  ridge(X * row_scale, Y * row_scale, penalty)
 }
 
-# `frames`: "frames" for the per-frame fit, "mean" for the fit SaccadeJS ships with.
+# `frames`: "frames" for the per-frame fit SaccadeJS ships with, "mean" for its earlier one-row-
+# per-point fit (the "points" option).
 fit_saccade <- function(train, frames = "frames") {
   switch(frames,
     frames = fit_saccade_frames(train),
@@ -373,14 +371,7 @@ fit_saccade <- function(train, frames = "frames") {
 
 # Gaze in viewport pixels from SaccadeJS's embeddings.
 predict_saccade_px <- function(kernel, embeddings, viewport) {
-  has_intercept <- nrow(kernel) == ncol(embeddings) + 1
-  gaze <- if (has_intercept) {
-    slopes <- kernel[seq_len(ncol(embeddings)), , drop = FALSE]
-    sweep(embeddings %*% slopes, 2, kernel["intercept", ], `+`)
-  } else {
-    embeddings %*% kernel
-  }
-  scale_by_point(gaze + 0.5, viewport)
+  scale_by_point(embeddings %*% kernel + 0.5, viewport)
 }
 
 # The frame nearest the middle of a station's scored frames: where a participant would click.
