@@ -1165,7 +1165,7 @@ In @sec-latency, we report further evidence that this works by measuring the tim
 
 In addition to our general core library, we also have developed an integration with jsPsych. jsPsych is a framework for developing behavioral experiments that run in a web browser. Its modular design emphasizes plug-and-play functionality through plugins and extensions [@deleeuw2015; @deleeuw2023]. Plugins are experiment building blocks, enabling parameterized control over specific events. For example, we built a plugin that runs a calibration routine, allowing the researcher to customize the number and location of the calibration points, whether each point is shown for a fixed time or stays until the participant clicks it, how long the participant has to move their eyes to each point and how long frames are then captured there, the number of repetitions and whether their order is randomized, and whether the new points replace or add to an earlier calibration. Extensions support functionality that is persistent throughout an experiment, such as mouse tracking or eye tracking. We've developed five plugins and one extension as part of our SaccadeJS library (@tbl-jspsych).
 
-With the extension and plugins, it is possible to initialize, calibrate, validate, and collect eye tracking data in any jsPsych experiment with only a dozen or so lines of code. Our documentation [(https://saccade.jspsych.org)](https://saccade.jspsych.org/) has a getting started example that walks through a typical setup process and records gaze data with two AOIs. We don't walk through those steps here as the library may change over time and technical documentation online can adapt better than a published article.
+With the extension and plugins, it is possible to initialize, calibrate, validate, and collect eye tracking data in any jsPsych experiment with only a dozen or so lines of code. Our documentation [(https://saccade.jspsych.org)](https://saccade.jspsych.org/) has a getting started example that walks through a typical setup process and records gaze data with two AOIs. We do not walk through those steps here as the library may change over time and technical documentation online can adapt better than a published article.
 
 | Package | Type | What it does |
 |:----------------|:-----|:---------------------|
@@ -1869,7 +1869,7 @@ lat_dist <- function(tr, column) {
 lag_reliable <- camera_lag |> filter(timing_verdict == "OK", is.finite(lag_ms)) |> pull(lag_ms)
 ```
 
-As described in @sec-timing, the temporal accuracy of webcam eye tracking has historically been poor due to unmeasured and unknown delays between the clock that controls the display and the clock that timestamps video frames. We developed a procedure that measures this delay and corrects for it. In this Prolific experiment, we don't have ground truth timing measurements -- however, the timing of a saccade to a new target when the current target disappears at the same moment is known to take around 175-200ms [@saslow1967; @bargary2017]. In particular, @bargary2017 measured saccade latency in `r format(bargary_n, big.mark = ",")` healthy young adults with a step task like ours, in which a target jumped 3–15° after a random 500–1500 ms delay; participants' median latencies averaged `r f0(bargary_mean)` ms. In this analysis, we check whether the correction algorithm produces estimates of saccade latency that are in line with these data.
+As described in @sec-timing, the temporal accuracy of webcam eye tracking has historically been poor due to unmeasured and unknown delays between the clock that controls the display and the clock that timestamps video frames. We developed a procedure that measures this delay and corrects for it. In this Prolific experiment, we do not have ground truth timing measurements -- however, the timing of a saccade to a new target when the current target disappears at the same moment is known to take around 175-200ms [@saslow1967; @bargary2017]. In particular, @bargary2017 measured saccade latency in `r format(bargary_n, big.mark = ",")` healthy young adults with a step task like ours, in which a target jumped 3–15° after a random 500–1500 ms delay; participants' median latencies averaged `r f0(bargary_mean)` ms. In this analysis, we check whether the correction algorithm produces estimates of saccade latency that are in line with these data.
 
 We measured camera delay using the time sync plugin at the start of the experiment. As shown in @fig-latency A, the estimated delays were around 100ms (median `r f0(median(lag_reliable))` ms, range `r f0(min(lag_reliable))`–`r f0(max(lag_reliable))` ms, among the `r length(lag_reliable)` participants whose measurement the plugin judged reliable). To measure saccade timing with the variable and low sampling rates of the webcams, we estimated when the gaze crossed the midpoint of a line between the old and new targets. We applied a linear interpolation of gaze so that the sampling rate of the camera didn't bias the measurement. Without it, the crossing would be placed at the first frame past the midpoint, which comes later on average the fewer frames a camera records, so slower cameras would produce slower saccades. We used the repeating calibration strategy described in @sec-calibration to improve accuracy of the estimates.
 
@@ -2432,13 +2432,38 @@ encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
   plot_annotation(tag_levels = "A")
 ```
 
+@fig-frames shows each participant's median error against the number of frames scored at each fixation.
+
+```{r}
+#| label: fig-frames
+#| fig-cap: "Each participant's median error after one 25-point calibration, as in @fig-forward, against the median number of frames scored at each fixation (the 1,000 ms after the target settled). Both trackers score the same frames. Lines are a smooth trend per tracker."
+#| fig-width: 4.5
+#| fig-height: 3.2
+# Per participant: the median number of scored frames per fixation, on the same frames and
+# calibration as the accuracy results, and each tracker's median error. Both trackers score the
+# same frames, so the count is the same for both.
+frames_error <- fwd_frames |>
+  summarise(n_frames = n(), .by = c(session, tracker, station)) |>
+  summarise(n_frames = median(n_frames), .by = c(session, tracker)) |>
+  inner_join(summarise(fwd_frames, error = median(error), .by = c(session, tracker)),
+             by = c("session", "tracker"))
+
+ggplot(frames_error, aes(n_frames, error, color = tracker)) +
+  geom_point(size = 0.9, alpha = 0.45, stroke = 0) +
+  geom_smooth(method = "loess", formula = y ~ x, span = 1, se = FALSE, linewidth = 0.8) +
+  scale_color_manual(values = TRACKER_COLORS) +
+  scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50)) +
+  labs(x = "Frames scored per fixation (median)",
+       y = "Median error\n(% of diagonal, log scale)")
+```
+
 # Conclusion
 
 SaccadeJS offers substantial improvement in the accuracy and precision of real-time eye tracking for browser-based experiments. Researchers can use SaccadeJS to reliably distinguish between much smaller AOIs than WebGazer, enabling online eye tracking research to move beyond designs with halves and quadrants. Furthermore, with a brief temporal calibration, the accuracy of webcam timestamps can be improved to the point where the major limiting temporal factor is the sampling rate of the webcam instead of synchronization. Previous studies with WebGazer found that effects appeared later than the same effects measured in the lab [@prystauka2024; @slim2024].
 
 Performance of SaccadeJS depends on the participant's environment and device. We recommend that researchers include instructions that encourage a well-lit face (enhancing contrast around the eyes), minimizing head movement during the task, and sitting closer to the screen.  Based on these findings, we modified our initial implementation of the `@saccadejs/plugin-preview` plugin to provide directed feedback to participants. The plugin measures interocular distance and contrast in the eye region, and advises participants if they need to move closer/further or improve lighting conditions. How researchers choose to calibrate the system also matters. Researchers can also improve accuracy through periodic short recalibrations instead of using longer one-off calibrations at the start of the task. 
 
-We don't expect that the particular gaze prediction model we developed is an optimal one and we encourage the use of our dataset to discover improvements. The SaccadeJS dataset is the largest of its kind, and the first that is specifically targeted at the kinds of eye movements that participants make when using a laptop or desktop screen in an uncontrolled environment. We hope that its availability allows for improved benchmarking of gaze models targeted at online research.
+We do not expect that the particular gaze prediction model we developed is an optimal one and we encourage the use of our dataset to discover improvements. The SaccadeJS dataset is the largest of its kind, and the first that is specifically targeted at the kinds of eye movements that participants make when using a laptop or desktop screen in an uncontrolled environment. We hope that its availability allows for improved benchmarking of gaze models targeted at online research.
 
 One significant limitation of the current model is that it was able to keep up with the camera in real time on only `r f0(live_overall$keep_up)`% of the machines in our validation study sample. As a result, we have built a deferred mode into the SaccadeJS library. This mode operates like the version we built for the validation study: image crops are taken in real-time and saved in a memory queue. One or more CPU threads then processes these in the background, staying off the thread used to run the experiment. The downsides of deferred mode are that it cannot be used for any study that relies on real-time gaze predictions and, at some point during the study, the eye tracking needs to be off while the queue catches up. This can be done during brief breaks between trials or at the end of the experiment. Optimistically, we expect consumer laptop hardware to continue to improve in ways that are specifically targeting GPU and GPU-like computation with the increasing adoption of neural networks for language and image processing on these devices. For example, Intel and AMD have both started producing integrated chips with "neural hardware."
 
