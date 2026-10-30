@@ -378,7 +378,9 @@ predict_saccade_px <- function(kernel, embeddings, viewport) {
 middle_frame <- function(station) which.min(abs(station$times - mean(station$times)))
 
 # WebGazer, as it ships: one feature vector per calibration click, mapped to screen pixels, from
-# only the most recent clicks its store keeps.
+# only the most recent clicks its store keeps. A click stores the latest frame's features once
+# (recordScreenPosition in WebGazer's src/index.mjs), not the frames around it. WebGazer's Kalman
+# filter, on by default, is not applied: SaccadeJS's predictions are not smoothed either.
 fit_webgazer <- function(train) {
   X <- stack_rows(map(train, \(s) s$features[middle_frame(s), ]))
   Y <- stack_rows(map(train, "target_px"))

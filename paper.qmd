@@ -29,7 +29,7 @@ authornote: |
 bibliography: references.bib
 bibliographystyle: apa
 abstract: |
-  Webcam eye tracking allows researchers to study eye movements in large, geographically diverse online samples, but its accuracy has limited usage to coarse comparisons, such as which half or quadrant of the screen a participant is looking at. We introduce SaccadeJS, an open-source webcam eye tracker that runs entirely in the participant's browser. SaccadeJS uses a neural network to transform images of the eyes to features, which a ridge regression maps to screen positions. The network can be rapidly calibrated by computing new regression weights on a sample of fixations at known locations. To train the model, we collected a new dataset of 2,003 participants who fixated targets on their own laptop and desktop computers. In a validation study with 200 new online participants, the median error was about 5% of the screen diagonal. That accuracy is enough to distinguish many more, and smaller, areas of interest than halves and quadrants. We also developed a timing calibration routine to measure each participant's camera lag. After correction, saccade latencies matched distributions from laboratory experiments. We report how different calibration strategies and image characteristics affect accuracy. SaccadeJS could be run in real-time on about one third of the participants in the validation study; for others, the library processes frames in the background while the experiment runs. SaccadeJS can be used as standalone software for webcam eye tracking or in conjuntion with jsPsych through a set of provided plugins for calibration, validation and recording.
+  Webcam eye tracking allows researchers to study eye movements in large, geographically diverse online samples, but its accuracy has limited usage to coarse comparisons, such as which half or quadrant of the screen a participant is looking at. We introduce SaccadeJS, an open-source webcam eye tracker that runs entirely in the participant's browser. SaccadeJS uses a neural network to transform images of the eyes to features, which a ridge regression maps to screen positions. The network can be rapidly calibrated by computing new regression weights on a sample of fixations at known locations. To train the model, we collected a new dataset of 2,003 participants who fixated targets on their own laptop and desktop computers. In a validation study with 200 new online participants, the median participant's error was about 4% of the screen diagonal. That accuracy is enough to distinguish many more, and smaller, areas of interest than halves and quadrants. We also developed a timing calibration routine to measure each participant's camera lag. After correction, saccade latencies matched distributions from laboratory experiments. We report how different calibration strategies and image characteristics affect accuracy. SaccadeJS could be run in real-time on about one third of the participants in the validation study; for others, the library processes frames in the background while the experiment runs. SaccadeJS can be used as standalone software for webcam eye tracking or in conjuntion with jsPsych through a set of provided plugins for calibration, validation and recording.
 ---
 
 ```{r}
@@ -429,7 +429,7 @@ In addition to learning a mapping between pixels and features, we also learn a f
 
 With image embeddings and weights computed, predictions are generated in two steps. First, we fit a weighted ridge regression to the calibration images. If $X$ is the matrix of calibration embeddings, $Y$ the matrix of their known gaze coordinates, and $W$ a diagonal matrix of their predicted weights, the regression coefficients are $A = (X^\top W X + \lambda I)^{-1} X^\top W Y$. Second, we predict the gaze location of any new image by multiplying its embedding by $A$. The full model architecture is shown in @fig-model. The ridge regression is implemented as a Keras layer [@chollet2015], so gradients flow back through the regression into the embedding and weight layers, enabling us to train the model end-to-end. During training, $\lambda = 0.1$ and the regression has no intercept term.
 
-Once the network is trained, the regression is the only part fit for each new participant, and it differs from the training version in two ways. First, gaze coordinates are measured from the center of the screen, and the center is added back to each prediction. This acts as an intercept fixed at the screen's center rather than estimated from the data, so a fit with little information, such as one from a few calibration points, falls back toward the middle of the screen rather than its top-left corner. Second, the penalty is stronger, $\lambda = 3$. Each frame captured at a calibration point is its own row of $X$, and the weights in $W$ are rescaled to average 1.
+Once the network is trained, the regression is the only part fit for each new participant, and it differs from the training version in two ways. First, gaze coordinates are measured from the center of the screen, and the center is added back to each prediction. This acts as an intercept fixed at the screen's center rather than estimated from the data, so a fit with little information, such as one from a few calibration points, falls back toward the middle of the screen rather than its top-left corner. Second, the penalty is stronger, $\lambda = 3$; of the values from 0.1 to 30 we tried, this one gave the held-out participants (@sec-model-performance) the lowest median error averaged over calibrations of 3 to 144 points, though anything from 2 to 10 was within 0.1 percentage points of it. Each frame captured at a calibration point is its own row of $X$, and the weights in $W$ are rescaled to average 1.
 
 ```{r}
 #| label: fig-model
@@ -1234,7 +1234,7 @@ FIXATION_WINDOW <- c(0, 1000)
 
 # Every result below comes from one replay of each session through both trackers (see
 # replay_session in R/validation.R). SaccadeJS calibrates from every frame of each calibration
-# point. Sessions are replayed in parallel with parallel::mclapply, since purrr 1.0 has no
+# point; WebGazer from one frame per point, as at a click. Sessions are replayed in parallel with parallel::mclapply, since purrr 1.0 has no
 # parallel map; the chunk is cached on the analysis code and the dataset's checksum.
 replays <- parallel::mclapply(attentive, function(s)
   replay_session(file.path(data_dir, "sessions", paste0(s, ".json.gz")), s,
@@ -1267,11 +1267,14 @@ fwd_wide <- fwd_frames |>
   drop_na(saccade, webgazer) |>
   mutate(difference = webgazer - saccade)
 n_fwd <- nrow(fwd_wide)
-fwd_ci <- t.test(fwd_wide$difference)$conf.int
-# The share of SaccadeJS's frames closer to the target than WebGazer's average median error.
+# Paired within participant, as a ratio: WebGazer's median error over SaccadeJS's, its median and
+# interquartile range across participants.
+fwd_ratio <- quantile(fwd_wide$webgazer / fwd_wide$saccade, c(0.25, 0.5, 0.75), names = FALSE)
+# The share of SaccadeJS's frames closer to the target than the median participant's error with
+# WebGazer.
 saccade_frames_beat <- fwd_frames |>
   filter(tracker == "SaccadeJS", session %in% fwd_wide$session) |>
-  summarise(share = mean(error < mean(fwd_wide$webgazer))) |>
+  summarise(share = mean(error < median(fwd_wide$webgazer))) |>
   pull(share)
 ```
 
@@ -1293,33 +1296,32 @@ prec_wide <- prec_frames |>
   rename(saccade = SaccadeJS, webgazer = WebGazer) |>
   drop_na(saccade, webgazer)
 
-# Paired within participant, as a ratio: WebGazer's SD over SaccadeJS's, summarised by its
-# geometric mean with a t interval on the log scale, since the spread grows with the value.
-log_ratio <- log(prec_wide$webgazer / prec_wide$saccade)
-prec_ratio <- exp(mean(log_ratio))
-prec_ci <- exp(t.test(log_ratio)$conf.int)
+# Paired within participant, as a ratio: WebGazer's SD over SaccadeJS's, its median and
+# interquartile range across participants.
+prec_ratio <- quantile(prec_wide$webgazer / prec_wide$saccade, c(0.25, 0.5, 0.75), names = FALSE)
 n_prec <- nrow(prec_wide)
-# The share of SaccadeJS's frames closer to their fixation's mean gaze than WebGazer's average SD.
+# The share of SaccadeJS's frames closer to their fixation's mean gaze than the median
+# participant's SD with WebGazer.
 saccade_deviations_beat <- prec_frames |>
   filter(tracker == "SaccadeJS", session %in% prec_wide$session) |>
-  summarise(share = mean(deviation < mean(prec_wide$webgazer))) |>
+  summarise(share = mean(deviation < median(prec_wide$webgazer))) |>
   pull(share)
 ```
 
 
-Our first aim was to characterize the spatial accuracy and precision of SaccadeJS. We calibrated each model using the first block's 25-point grid and then measured the model's predictions on all 43 points in the second and third blocks. For SaccadeJS, we used all recorded feature vectors at each calibration point, weighted by the model's quality score. For WebGazer, we used one feature vector per calibration point, as WebGazer has a 50 point maximum as it is shipped. We used measurements taken from 600-1600ms after the target appeared, leaving a wide window for the initial saccade to settle. 
+Our first aim was to characterize the spatial accuracy and precision of SaccadeJS. We calibrated each model using the first block's 25-point grid and then measured the model's predictions on all 43 points in the second and third blocks. For SaccadeJS, we used all recorded feature vectors at each calibration point, weighted by the model's quality score. For WebGazer, we used its standard click calibration: a click stores the features of the most recent camera frame, once, so we used one frame per calibration point, the one nearest the middle of the scored window, as at a click. WebGazer keeps only the 50 most recent clicks, and we used its default ridge penalty. Neither tracker's predictions were smoothed. WebGazer applies a Kalman filter to its predictions by default; we turned it off, since SaccadeJS's predictions are not filtered. Smoothing could be applied to either tracker's output, and would improve the precision of both. We used measurements taken from 600-1600ms after the target appeared, leaving a wide window for the initial saccade to settle. 
 
-As shown in panel A of @fig-forward, SaccadeJS is more accurate than WebGazer for `r sum(fwd_wide$difference > 0)` of `r n_fwd` participants (`r f1(100 * mean(fwd_wide$difference > 0))`%). We took the median error from the predictions for each participant. The average median error for SaccadeJS is `r f2(mean(fwd_wide$saccade))`%; for WebGazer it is `r f2(mean(fwd_wide$webgazer))`%. The vast majority of predictions made by SaccadeJS (`r f0(100 * saccade_frames_beat)`%) are more accurate than WebGazer's average performance (panel B).
+As shown in panel A of @fig-forward, SaccadeJS is more accurate than WebGazer for `r sum(fwd_wide$difference > 0)` of `r n_fwd` participants (`r f1(100 * mean(fwd_wide$difference > 0))`%). We took the median error of each participant's predictions. With SaccadeJS, the median participant's error was `r dist_text(fwd_wide$saccade)`; with WebGazer, it was `r dist_text(fwd_wide$webgazer)`. Within participants, WebGazer's error was a median of `r f1(fwd_ratio[2])` times SaccadeJS's (IQR `r f1(fwd_ratio[1])`–`r f1(fwd_ratio[3])`). The vast majority of predictions made by SaccadeJS (`r f0(100 * saccade_frames_beat)`%) were closer to the target than the median participant's error with WebGazer (panel B).
 
 ```{r}
 #| label: fig-forward
-#| fig-cap: !expr sprintf("Accuracy after one 25-point calibration. (A) Each participant's median error, WebGazer against SaccadeJS. Above the solid diagonal, SaccadeJS was more accurate; dotted lines mark 2× and 4×. The diamond is the geometric mean. (B) The share of test frames within a given distance of the target. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Every frame's gaze (dots) for the median participant (%s, ranked by SaccadeJS's error) on the nine points of the validation grid (crosses), on their own screen, in the block after calibration.", gaze_session)
+#| fig-cap: !expr sprintf("Accuracy after one 25-point calibration. (A) Each participant's median error, WebGazer against SaccadeJS. Above the solid diagonal, SaccadeJS was more accurate; dotted lines mark 2× and 4×. The diamond marks the median on each axis. (B) The share of test frames within a given distance of the target. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Every frame's gaze (dots) for the median participant (%s, ranked by SaccadeJS's error) on the nine points of the validation grid (crosses), on their own screen, in the block after calibration.", gaze_session)
 #| fig-width: 6.5
 #| fig-height: 6.2
 # (A) Participants. Log axes: a few very poor sessions would otherwise squeeze the rest into a
 # corner, and a constant ratio between the trackers is then a line parallel to the diagonal.
 lims <- range(c(fwd_wide$saccade, fwd_wide$webgazer)) * c(0.85, 1.15)
-geo_mean <- fwd_wide |> summarise(across(c(saccade, webgazer), \(x) exp(mean(log(x)))))
+med_point <- fwd_wide |> summarise(across(c(saccade, webgazer), median))
 scatter_panel <- ggplot(fwd_wide, aes(saccade, webgazer)) +
   geom_abline(slope = 1, intercept = 0, color = INK_2, linewidth = 0.4) +
   geom_abline(slope = 1, intercept = log10(c(2, 4)), color = INK_2, linewidth = 0.3,
@@ -1328,7 +1330,7 @@ scatter_panel <- ggplot(fwd_wide, aes(saccade, webgazer)) +
   annotate("text", x = lims[2] * 0.9 / c(1, 2, 4), y = lims[2] * 0.9, label = c("1×", "2×", "4×"),
            hjust = 1.4, size = 2.4, color = INK_2) +
   geom_point(size = 1.4, alpha = 0.7, stroke = 0, color = INK_2) +
-  geom_point(data = geo_mean, size = 3, shape = 23, fill = "white", color = INK, stroke = 0.9) +
+  geom_point(data = med_point, size = 3, shape = 23, fill = "white", color = INK, stroke = 0.9) +
   scale_x_log10(breaks = c(1, 2, 5, 10, 20, 50)) +
   scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50)) +
   coord_equal(xlim = lims, ylim = lims, expand = FALSE) +
@@ -1402,16 +1404,16 @@ wrap_elements(full = top_row) / wrap_elements(full = gaze_panel + labs(tag = "C"
 
 To characterize the precision of both systems, we calculated the standard deviation of each participant's predictions around the mean prediction for each target, combining the horizontal and vertical directions, and pooled this across all targets (excluding targets with only 1 prediction). Because it is measured from the mean prediction rather than the target, this measure does not include accuracy.
 
-SaccadeJS's precision was better for `r sum(prec_wide$webgazer > prec_wide$saccade)` of `r n_prec` participants (`r f1(100 * mean(prec_wide$webgazer > prec_wide$saccade))`%). For SaccadeJS, the average SD was `r f2(mean(prec_wide$saccade))`%; for WebGazer it was `r f2(mean(prec_wide$webgazer))`%. The vast majority of predictions made by SaccadeJS (`r f0(100 * saccade_deviations_beat)`%) are closer to their mean prediction than WebGazer's average SD (panel B of @fig-precision).
+SaccadeJS's precision was better for `r sum(prec_wide$webgazer > prec_wide$saccade)` of `r n_prec` participants (`r f1(100 * mean(prec_wide$webgazer > prec_wide$saccade))`%). With SaccadeJS, the median participant's SD was `r dist_text(prec_wide$saccade)`; with WebGazer, it was `r dist_text(prec_wide$webgazer)`. Within participants, WebGazer's SD was a median of `r f1(prec_ratio[2])` times SaccadeJS's (IQR `r f1(prec_ratio[1])`–`r f1(prec_ratio[3])`). The vast majority of predictions made by SaccadeJS (`r f0(100 * saccade_deviations_beat)`%) were closer to their mean prediction than the median participant's SD with WebGazer (panel B of @fig-precision).
 
 ```{r}
 #| label: fig-precision
-#| fig-cap: !expr sprintf("Precision after one 25-point calibration, as how much gaze moves around each fixation's own mean. (A) Each participant's standard deviation, WebGazer against SaccadeJS. Above the solid diagonal, SaccadeJS was more precise; dotted lines mark 2× and 4×. The diamond is the geometric mean. (B) The share of frames within a given distance of their fixation's mean gaze. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Every test frame's offset from its fixation's mean gaze, all fixations overlaid at the center of the participant's own screen, for the median participant (%s, ranked by SaccadeJS's standard deviation). Circles mark that participant's standard deviation.", prec_session)
+#| fig-cap: !expr sprintf("Precision after one 25-point calibration, as how much gaze moves around each fixation's own mean. (A) Each participant's standard deviation, WebGazer against SaccadeJS. Above the solid diagonal, SaccadeJS was more precise; dotted lines mark 2× and 4×. The diamond marks the median on each axis. (B) The share of frames within a given distance of their fixation's mean gaze. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Every test frame's offset from its fixation's mean gaze, all fixations overlaid at the center of the participant's own screen, for the median participant (%s, ranked by SaccadeJS's standard deviation). Circles mark that participant's standard deviation.", prec_session)
 #| fig-width: 6.5
 #| fig-height: 6.6
 # (A) Participants, on log axes as for accuracy.
 lims <- range(c(prec_wide$saccade, prec_wide$webgazer)) * c(0.85, 1.15)
-prec_geo <- prec_wide |> summarise(across(c(saccade, webgazer), \(x) exp(mean(log(x)))))
+prec_med <- prec_wide |> summarise(across(c(saccade, webgazer), median))
 prec_scatter <- ggplot(prec_wide, aes(saccade, webgazer)) +
   geom_abline(slope = 1, intercept = 0, color = INK_2, linewidth = 0.4) +
   geom_abline(slope = 1, intercept = log10(c(2, 4)), color = INK_2, linewidth = 0.3,
@@ -1420,7 +1422,7 @@ prec_scatter <- ggplot(prec_wide, aes(saccade, webgazer)) +
   annotate("text", x = lims[2] * 0.9 / c(1, 2, 4), y = lims[2] * 0.9, label = c("1×", "2×", "4×"),
            hjust = 1.4, size = 2.4, color = INK_2) +
   geom_point(size = 1.4, alpha = 0.7, stroke = 0, color = INK_2) +
-  geom_point(data = prec_geo, size = 3, shape = 23, fill = "white", color = INK, stroke = 0.9) +
+  geom_point(data = prec_med, size = 3, shape = 23, fill = "white", color = INK, stroke = 0.9) +
   scale_x_log10(breaks = c(0.5, 1, 2, 5, 10, 20)) +
   scale_y_log10(breaks = c(0.5, 1, 2, 5, 10, 20)) +
   coord_equal(xlim = lims, ylim = lims, expand = FALSE) +
@@ -1709,7 +1711,7 @@ n_recal <- n_distinct(recal$session)
 grid_paired <- by_grid |>
   pivot_wider(names_from = grid, values_from = error, names_prefix = "g") |>
   drop_na(g9, g25) |>
-  summarise(n = n(), mean9 = mean(g9), mean25 = mean(g25), gain = mean(g9 - g25),
+  summarise(n = n(), med9 = median(g9), med25 = median(g25), gain = mean(g9 - g25),
             lo = t.test(g9 - g25)$conf.int[1], hi = t.test(g9 - g25)$conf.int[2],
             better = sum(g25 < g9), .by = tracker)
 grid_pair <- function(tr, column) value_of(grid_paired, {{ column }}, tracker == tr)
@@ -1749,7 +1751,7 @@ scheme_dist <- function(tr, s, b) {
 
 SaccadeJS and WebGazer can both be calibrated using an arbitrary set of calibration points. To provide researchers with guidance on how and when to calibrate, we measured the effect of different calibration protocols on accuracy. This was possible because we saved image features and embeddings instead of the normal usage of both systems where only gaze predictions would be saved after calibration. In each block of 43 points, the 25-point calibration grid also contained the 9-point and 13-point grids as nested subsets. 
 
-As shown in the left panel of @fig-calibration, the accuracy of predictions for SaccadeJS is relatively stable across the three calibration sets, but there is a reliable small gain in improvement with more calibration points. Going from 9 to 25 points reduced SaccadeJS's average error from `r f2(grid_pair("SaccadeJS", mean9))`% to `r f2(grid_pair("SaccadeJS", mean25))`%, a gain of `r f2(grid_pair("SaccadeJS", gain))` percentage points (95% CI `r f2(grid_pair("SaccadeJS", lo))` to `r f2(grid_pair("SaccadeJS", hi))`); error was lower with 25 points for `r grid_pair("SaccadeJS", better)` of `r grid_pair("SaccadeJS", n)` participants. WebGazer shows a similar small but reliable improvement as the number of calibration points increases. Its average error fell from `r f2(grid_pair("WebGazer", mean9))`% to `r f2(grid_pair("WebGazer", mean25))`%, a gain of `r f2(grid_pair("WebGazer", gain))` percentage points (95% CI `r f2(grid_pair("WebGazer", lo))` to `r f2(grid_pair("WebGazer", hi))`), and was lower with 25 points for `r grid_pair("WebGazer", better)` of `r grid_pair("WebGazer", n)` participants.
+As shown in the left panel of @fig-calibration, the accuracy of predictions for SaccadeJS is relatively stable across the three calibration sets, but there is a reliable small gain in improvement with more calibration points. Going from 9 to 25 points lowered SaccadeJS's median error from `r f2(grid_pair("SaccadeJS", med9))`% to `r f2(grid_pair("SaccadeJS", med25))`%; within participants, the mean gain was `r f2(grid_pair("SaccadeJS", gain))` percentage points (95% CI `r f2(grid_pair("SaccadeJS", lo))` to `r f2(grid_pair("SaccadeJS", hi))`); error was lower with 25 points for `r grid_pair("SaccadeJS", better)` of `r grid_pair("SaccadeJS", n)` participants. WebGazer shows a similar small but reliable improvement as the number of calibration points increases. Its median error fell from `r f2(grid_pair("WebGazer", med9))`% to `r f2(grid_pair("WebGazer", med25))`%, a mean gain of `r f2(grid_pair("WebGazer", gain))` percentage points (95% CI `r f2(grid_pair("WebGazer", lo))` to `r f2(grid_pair("WebGazer", hi))`), and was lower with 25 points for `r grid_pair("WebGazer", better)` of `r grid_pair("WebGazer", n)` participants.
 
 The middle panel of @fig-calibration illustrates the effect of drift from calibration. Below, each value is the median of participants' median errors, with the interquartile range across participants. Focusing on the SaccadeJS results, accuracy is highest for points that are presented immediately after calibration, at `r lag_dist("SaccadeJS", 0)`, and then it degrades after only a few minutes. One block later, about `r lag_min(1)` minutes after calibrating, error was `r lag_dist("SaccadeJS", 1)`, and two blocks later, about `r lag_min(2)` minutes after, it was `r lag_dist("SaccadeJS", 2)`. The median rose by `r lag_rise("SaccadeJS")`%, and error was higher two blocks later for `r lag_pair("SaccadeJS", worse)` of `r lag_pair("SaccadeJS", n)` participants. WebGazer drifted as well, from `r lag_dist("WebGazer", 0)` to `r lag_dist("WebGazer", 2)`, a `r lag_rise("WebGazer")`% rise in the median.
 
