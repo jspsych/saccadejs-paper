@@ -25,7 +25,7 @@ affiliations:
     department: Cognitive Science Department
 format: preprint-typst
 authornote: |
-  We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project.
+  We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project. We used LLMs to assist in the preparation of the manuscript; LLMs provided coding assistance for analyses, provided feedback and suggested edits, which we sometimes used, on prose, and checked for inconsistencies between how we described the software and the code. 
 bibliography: references.bib
 bibliographystyle: apa
 abstract: |
@@ -332,7 +332,7 @@ panel_c <- ggplot(sessions) +
 
 Before completing the fixation task, we gave participants some instructions to try and improve the quality of the data. We said: "Please adjust the camera, your position, and the lighting to get a good view of your face and especially your eyes. Here are some tips: (1) To avoid backlighting, make sure a strong light is in front of you. (2) If you wear glasses, try to reduce glare on the lenses as much as possible. (3) You should be the only face in frame. If you can clearly see the whites of your eyes, you're likely in a good spot!" We also asked participants whether they were using an integrated or external webcam (showing examples of each type through photos) and whether they were wearing glasses. 
 
-## Data
+## Data {#sec-data}
 
 During the task, we recorded individual video clips of each trial. The recording started after the first 1000ms of the trial, allowing plenty of time for the participant to saccade to the new location of the dot, and lasted for 500ms. We also recorded the response times to the dot detection task. The number of frames recorded in each video was constrained by the frame rate of the participant's webcam. Averaged over each participant's clips, it ranged from `r f1(min(ds_frames_per_clip))` to `r f1(max(ds_frames_per_clip))` frames, with a median of `r f1(median(ds_frames_per_clip))`. Many clips were longer than 500 ms, likely due to unavoidable browser delays. The median participant's clips lasted `r f0(ds_median("clip_ms", "training"))` ms in the training set and `r f0(ds_median("clip_ms", "held-out"))` ms in the held-out set, and `r ds_pct("training", \(d) d$clip_ms > 600)`% and `r ds_pct("held-out", \(d) d$clip_ms > 600)`% of participants had a median clip longer than 600 ms. The longest clips came from the slowest cameras: held-out participants recording at 12 frames per second or fewer had a median clip of `r f0(median(filter(dataset, split == "held-out", frame_rate <= 12)$clip_ms))` ms. We asked the browser for video 480 pixels wide, but this was a preference rather than a requirement, and the browser used the nearest size the camera offered: 640 × 480 for `r ds_pct("training", \(d) d$video_width == 640 & d$video_height == 480)`% of the training set and `r ds_pct("held-out", \(d) d$video_width == 640 & d$video_height == 480)`% of the held-out set. The rest ranged from `r min(dataset$video_width)` to `r fn(max(dataset$video_width))` pixels wide, and `r sum(dataset$video_height > dataset$video_width)` participants recorded in portrait. Each clip was saved as a WebM file, compressed with the codec the participant's browser chose: H.264 for `r ds_pct("training", \(d) d$video_codec == "h264")`% of the training set and `r ds_pct("held-out", \(d) d$video_codec == "h264")`% of the held-out set, and VP8 for the rest.
 
@@ -427,7 +427,9 @@ We used a hybrid CNN-transformer architecture to learn feature embeddings. Input
 
 In addition to learning a mapping between pixels and features, we also learn a function to map pixels to item weights for weighting the ridge regression. This allows the model to learn to deprioritize poor quality calibration images. To learn this mapping, we added a single layer with one unit on top of the output of the embedding model. This unit has a sigmoid activation function, to constrain weights to be in the range 0-1. 
 
-With image embeddings and weights computed, predictions are generated in two steps. First, we fit a weighted ridge regression to the calibration images. If $X$ is the matrix of calibration embeddings, $Y$ the matrix of their known gaze coordinates, and $W$ a diagonal matrix of their predicted weights, the regression coefficients are $A = (X^\top W X + \lambda I)^{-1} X^\top W Y$, with $\lambda = 0.1$ during training. Second, we predict the gaze location of any new image by multiplying its embedding by $A$. The regression has no intercept term. The full model architecture is shown in @fig-model. The ridge regression is implemented as a Keras layer [@chollet2015], so gradients flow back through the regression into the embedding and weight layers, enabling us to train the model end-to-end.
+With image embeddings and weights computed, predictions are generated in two steps. First, we fit a weighted ridge regression to the calibration images. If $X$ is the matrix of calibration embeddings, $Y$ the matrix of their known gaze coordinates, and $W$ a diagonal matrix of their predicted weights, the regression coefficients are $A = (X^\top W X + \lambda I)^{-1} X^\top W Y$. Second, we predict the gaze location of any new image by multiplying its embedding by $A$. The full model architecture is shown in @fig-model. The ridge regression is implemented as a Keras layer [@chollet2015], so gradients flow back through the regression into the embedding and weight layers, enabling us to train the model end-to-end. During training, $\lambda = 0.1$ and the regression has no intercept term.
+
+Once the network is trained, the regression is the only part fit for each new participant, and it differs from the training version in two ways. First, gaze coordinates are measured from the center of the screen, and the center is added back to each prediction. This acts as an intercept fixed at the screen's center rather than estimated from the data, so a fit with little information, such as one from a few calibration points, falls back toward the middle of the screen rather than its top-left corner. Second, the penalty is stronger, $\lambda = 3$. Each frame captured at a calibration point is its own row of $X$, and the weights in $W$ are rescaled to average 1.
 
 ```{r}
 #| label: fig-model
@@ -1094,13 +1096,15 @@ icon_panel(names(eval_within_rows), eval_within_rows, n_rows = nrow(eval_within_
 
 # Using the Model in a Browser
 
-To facilitate use in the research community, we have developed a JavaScript library that can be used to deploy SaccadeJS on any webpage, including those generated by popular experiment building tools like PsychoPy/PsychoJS [@peirce2019], lab.js [@henninger2022], and jsPsych [@deleeuw2015; @deleeuw2023]. The library is published on `npm` as `@saccadejs/core`. Documentation is available at <https://saccade.jspsych.org>. 
+To facilitate use in the research community, we have developed a JavaScript library that can be used to deploy SaccadeJS on any webpage, including those generated by popular experiment building tools like PsychoPy/PsychoJS [@peirce2019], lab.js [@henninger2022], and jsPsych [@deleeuw2015; @deleeuw2023]. The library is published on `npm` as `@saccadejs/core`. Documentation is available at <https://saccade.jspsych.org>. We don't go into depth on the use of the library in the paper, as it is liable to be out of date as the project evolves. Please refer to the documentation for tutorials, guides, and reference material.
 
-Every step runs in the participant's browser, on each frame of the webcam's video (@fig-browser). Webcam images are first processed by the [face landmarker? what's the name?] from MediaPipe. This identifies a mesh of [400?] points on the face, from which we crop out the 144x36 pixel region around the eyes. [We must describe this somewhere else in the paper? This probably shouldn't be where it initially appears.] 
+Every step runs in the participant's browser, on each frame of the webcam's video (@fig-browser). Webcam images are first processed by MediaPipe's Face Landmarker [@kartynnik2019; @grishchenko2020], which places 478 landmarks on the face. From these we crop the 144 × 36 pixel image of the eyes, with the same preprocessing we used to build the training data (@sec-data).
 
-The SaccadeJS model is compiled using ONNX, [describe what ONNX is]. ONNX provides a runtime that utilizes the WebGPU API. This allows the model to run using GPU [or NPU?? is that correct??] hardware on the participant's machine. 
+The trained network is exported to ONNX (Open Neural Network Exchange), an open format for neural networks that lets a model trained in one framework run in another [@onnx2019]. In the browser, ONNX Runtime Web [@onnxruntime2021] runs the model on the participant's graphics card through the WebGPU API [@webgpu2026], or, where WebGPU is not available, on the CPU through WebAssembly. The model file is about 20 MB.
 
-Unlike in training, where the model processes batches of images 
+Unlike in training, where the model processes batches of calibration images alongside a target image, in inference each image only needs to be processed once. The embeddings for each calibration image are used to compute the ridge regression once, allowing the cost of a prediction to be running the model once to get the embedding and computing the predicted coordinates through the solved regression matrix.
+
+As we show in @sec-hardware, not all machines are fast enough to run these predictions as fast as the camera samples new images. In our validation study, machines with Apple Silicon chips or NVIDIA graphics cards ran the model in real time, machines with integrated Intel or AMD graphics ran it somewhat slower than real time, and machines without WebGPU, which run the model on the CPU, took about a quarter of a second per frame. In cases where the machine cannot keep up with realtime processing, one option is to save the cropped eye images in memory and process them on one or more separate background threads while the main thread is running the experiment. Our library incorporates a deferred mode to enable this. [we talk about this elsewhere too. is this the right spot to get into details?] [something about participants needing to wait if there are lingering crops. especially good when eye tracking is intermittent because it can be processed while other things are happening.] In a worst case, cropped eye images could be saved as part of the experiment data and the model could be run offline instead of in the browser.
 
 ```{r}
 #| label: fig-browser
@@ -1143,13 +1147,6 @@ ggplot(browser_boxes) +
   coord_fixed(xlim = c(0, 13.75), ylim = c(0.35, 3.8), expand = FALSE) +
   theme_void()
 ```
-
-- Flow of data.   
-  - WebGL (mediapipe) → onnx runtime on WebGPU → JS regression.  
-  - OR WebGL(mediapipe) → save eye crops → deferred or offline embedding and regression.  
-    - talk about size constraints here  
-
-- Refer reader to github and documentation for specifics of implementation, since future versions might change after publication.
 
 ## Timing Correction {#sec-timing}
 
@@ -2273,7 +2270,7 @@ age_panel <- groups |>
   plot_layout(guides = "collect")
 ```
 
-### What hardware does SaccadeJS need?
+### What hardware does SaccadeJS need? {#sec-hardware}
 
 ```{r}
 #| label: runtime
