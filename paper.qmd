@@ -14,7 +14,7 @@ author:
   - name: Alex Teabo
     affiliations:
       - ref: "1"
-    orcid: https://orcid.org/0009-0005-6025-5077
+    orcid: 0009-0005-6025-5077
   - name: Cherrie Chang
     affiliations:
       - ref: "1"
@@ -49,6 +49,8 @@ library(forcats)
 source("R/data.R")
 # Replaying the validation sessions through both trackers.
 source("R/validation.R")
+# The recording conditions correlated with error, and what each one measures.
+source("R/measures.R")
 # Schematic icons for the recording conditions.
 source("R/icons.R")
 # Replaying the held-out evaluation of the model from its embeddings.
@@ -415,7 +417,7 @@ We informed participants three separate times that the data we recorded would be
 
 ## Data Access
 
-The dataset is published on Zenodo at [LINK]. The training and held-out collections are packaged separately, each in two forms. The raw videos are the trial `.webm` files as recorded (50 GB for the training set, 15 GB for the held-out set). The eye crops are one NumPy `.npz` file per participant (32 GB and 8 GB). It holds the 144 × 36 contrast-equalized image of both eyes and the 478 MediaPipe landmarks for every frame in which a face was found, with the trial's target position, the frame's timestamp, and the crop's size, sharpness, brightness, contrast, and eye aspect ratios. Each form is split by participant into self-contained zip archives of about 10 GB, and an index file lists which archive holds each participant. It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial 4.0 International license (CC BY-NC 4.0).
+The dataset is published on Zenodo at [LINK]. The training and held-out collections are packaged separately, each in two forms. The raw videos are the trial `.webm` files as recorded (50 GB for the training set, 15 GB for the held-out set). The eye crops are one NumPy `.npz` file per participant (32 GB and 8 GB). It holds the 144 × 36 contrast-equalized image of both eyes and the 478 MediaPipe landmarks for every frame in which a face was found, with the trial's target position, the frame's timestamp, and the crop's size, sharpness, brightness, contrast, and eye aspect ratios. Each form is split by participant into self-contained zip archives of about 10 GB, and an index file lists which archive holds each participant. It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International license (CC BY-NC-SA 4.0).
 
 # The SaccadeJS Gaze Model {#sec-model}
 
@@ -1195,7 +1197,7 @@ Once camera permissions were granted, the experiment became fullscreen. We then 
 
 With the checks complete, participants viewed the task instructions: "A target will appear on the screen. Look at its center and keep your eyes there. When it jumps to a new place, follow it with your eyes. Now and then, the small dot in the center will turn orange. When it does, press space. Please keep your head as still as you can, and move only your eyes." This screen included examples of the target with and without the orange dot. Participants then completed five practice fixations, in which three of the targets required a response. If the participant missed any of the responses, the trials repeated after a reminder about the instructions. Participants were screened out if they failed three rounds of the practice.
 
-Participants completed three blocks, each containing 43 fixation points. Of the 43, 13 were randomly selected as targets in each block, requiring participants to press the spacebar in response to the color change. The 43 points were selected by combining two grids and a small selection of random locations. 25 points came from a 5 × 5 grid, spaced at 5%, 27.5%, 50%, 72.5%, and 95% of the screen width and height, and provided calibration points (see analysis, below). The grid nests two smaller ones: a 9-point grid of its corners, edge midpoints and center (5%, 50%, and 95%), and a 13-point grid that adds the four points at 27.5% and 72.5%, SaccadeJS's default calibration. A 3 × 3 grid, spaced at 15%/50%/85% provided nine more. The remaining 9 points were randomly placed, with the constraints that one point must appear in each cell of a 3 × 3 division of the screen, no point could be within 5% of the width/height of the edge of the screen, and no point could be within 4% of the width/height of the screen of any other point. [figure?] Each point appeared for at least 1,600 ms. For target points requiring a response, the color change occurred 900–1,300 ms after it appeared, and stayed visible for 1,000 ms after that point. Pressing the spacebar turned the outer part of the fixation target green. In between each block, participants were required to wait at least 10 seconds, and when ready could progress to the next block by pressing the spacebar. 
+Participants completed three blocks, each containing 43 fixation points. Of the 43, 13 were randomly selected as targets in each block, requiring participants to press the spacebar in response to the color change. The 43 points were selected by combining two grids and a small selection of random locations. 25 points came from a 5 × 5 grid, spaced at 5%, 27.5%, 50%, 72.5%, and 95% of the screen width and height, and provided calibration points (see analysis, below). The grid nests two smaller ones: a 9-point grid of its corners, edge midpoints and center (5%, 50%, and 95%), and a 13-point grid that adds the four points at 27.5% and 72.5%, SaccadeJS's default calibration. A 3 × 3 grid, spaced at 15%/50%/85% provided nine more. The remaining 9 points were randomly placed, with the constraints that one point must appear in each cell of a 3 × 3 division of the screen, no point could be within 5% of the width/height of the edge of the screen, and no point could be within 4% of the width/height of the screen of any other point. Each point appeared for at least 1,600 ms. For target points requiring a response, the color change occurred 900–1,300 ms after it appeared, and stayed visible for 1,000 ms after that point. Pressing the spacebar turned the outer part of the fixation target green. In between each block, participants were required to wait at least 10 seconds, and when ready could progress to the next block by pressing the spacebar. 
 
 After all three blocks were complete, the browser exited fullscreen mode and participants completed a short set of questions. These asked participants whether they wore glasses or contacts during the session, to describe any technical problems, and to describe anything that may have interrupted looking at the targets during the session. Finally, data were uploaded and the participant was redirected to Prolific.
 
@@ -1226,7 +1228,7 @@ Throughout the entire analysis, we measure spatial distances in percentage of th
 ```{r}
 #| label: replay
 #| cache: true
-#| cache.extra: !expr c(tools::md5sum("R/validation.R"), ZENODO_MD5, MIN_ATTENTION)
+#| cache.extra: !expr c(tools::md5sum(c("R/validation.R", "R/measures.R")), ZENODO_MD5, MIN_ATTENTION)
 # The frames scored, in ms after the target's 600 ms settle ends: the whole 1000 ms capture
 # window. The settle gives the eyes time to arrive, so every recorded frame after it is fixation.
 SETTLE_MS <- 600
@@ -1589,7 +1591,7 @@ ggplot() +
         panel.spacing.x = unit(1.2, "lines"), panel.spacing.y = unit(0.4, "lines"))
 ```
 
-We also looked at where on the screen errors are larger. We started by dividing each individual frame's error by the median error for that participant. We then grouped frames into a 5 × 5 grid, and took the median ratio for the participant in each cell. Finally, within each cell, we took the median across the `r n_fwd` participants. As shown in @fig-screen-map, errors are a bit larger at the sides and bottom of the screen. We suspect this is because the eyelid tends to partially close when people look down, which reduces the visibility of the iris.[What about the sides]
+We also looked at where on the screen errors are larger. We started by dividing each individual frame's error by the median error for that participant. We then grouped frames into a 5 × 5 grid, and took the median ratio for the participant in each cell. Finally, within each cell, we took the median across the `r n_fwd` participants. As shown in @fig-screen-map, errors are a bit larger at the sides and bottom of the screen. For vertical error, we suspect this is because the eyelid tends to partially close when people look down, which reduces the visibility of the iris. But this does not explain the error at the sides. 
 
 ```{r}
 #| label: screen-map
@@ -1948,25 +1950,15 @@ wrap_elements(full = lag_panel + labs(tag = "A") + raw_vs_lag_panel + labs(tag =
 # Each participant's median error, joined to their recording conditions and to their answers.
 accuracy <- fwd_frames |> summarise(error = median(error), .by = c(session, tracker))
 
-# Recording conditions, averaged over the session (see recording_conditions in R/validation.R).
-# The difference in brightness between the eyes, and the head's roll, count by their size: light
-# from either side, or a tilt toward either shoulder, should matter the same. Pitch keeps its sign,
-# since tipping the head down and up are not alike: the lids close over the eyes as it goes down.
-# Positive pitch is the head tipped up: within a session, pitch fell as targets moved lower on the
-# screen for most participants (checked against the per-frame head pose).
-# Interocular distance (and its SD) as a percentage of the camera image's width, so it reads
-# independently of the camera's resolution. (Every session here recorded at the same one.)
+# Recording conditions, averaged over the session (see R/measures.R for what each one measures).
 # And SaccadeJS's quality weight: its median over the frames scored, the same frames for both
 # trackers, as in the held-out evaluation's figure. Not a recording condition but the model's own
 # reading of the images, so it is tested alongside the conditions but counted apart from them.
 session_weight <- fwd_frames |>
   filter(tracker == "SaccadeJS") |>
   summarise(weight = median(quality_weight, na.rm = TRUE), .by = session)
-conditions <- observer |>
-  left_join(select(machines, session, video_width), by = "session") |>
-  left_join(session_weight, by = "session") |>
-  mutate(brightness_difference = abs(asymmetry), tilt = abs(roll),
-         iod = 100 * iod / video_width, iod_sd = 100 * iod_sd / video_width)
+conditions <- participant_measures(observer, machines) |>
+  left_join(session_weight, by = "session")
 COVARIATES <- c(
   "eye brightness" = "brightness", "left–right brightness difference" = "brightness_difference",
   "eye contrast" = "contrast", "interocular distance" = "iod",
@@ -1991,16 +1983,9 @@ cov_sig <- cov_tests |> filter(p_holm < 0.05, covariate %in% names(COVARIATES)) 
 p_uncorrected <- function(cov, tr) p_fmt(value_of(cov_tests, p, covariate == cov, tracker == tr))
 
 # Within participants, frame by frame: what changes from moment to moment within a session,
-# against each frame's error, on the same frames and calibration as above. Drift from calibration
-# compares each frame with the participant's calibration frames (the first block's grid):
-# how far the eyes' midpoint has moved in the image, in interocular distances; how much the
-# interocular distance has changed relative to calibration (moving nearer or farther); how
-# much the head has turned, tipped and tilted; and the minutes since calibrating. Eye state and
-# image: how open the less open eye is (its aspect ratio), whether it is blinking (below 70% of
-# the participant's median), the eye crop's sharpness, and how much the eye patch's brightness
-# has changed since calibration. Sensor noise is left out: it is a property of the camera, which
-# varies between participants, not within them. And SaccadeJS's own quality
-# score for the frame, which only applies to SaccadeJS.
+# against each frame's error, on the same frames and calibration as above (see R/measures.R for
+# what each measure is). Drift is measured from the participant's calibration frames (the first
+# block's grid). And SaccadeJS's own quality score for the frame, which only applies to SaccadeJS.
 WITHIN_GROUPS <- c(
   "head shift" = "Drift from calibration", "interocular distance change" = "Drift from calibration",
   "head yaw change" = "Drift from calibration", "head pitch change" = "Drift from calibration",
@@ -2008,22 +1993,8 @@ WITHIN_GROUPS <- c(
   "eye aspect ratio" = "Eye state and image", "blinks" = "Eye state and image",
   "image sharpness" = "Eye state and image", "eye brightness change" = "Drift from calibration",
   "model quality weight" = "Model")
-reference <- calibration_reference |> rename_with(\(n) paste0("cal_", n), -session)
-frame_level <- fwd_frames |>
-  left_join(reference, by = "session") |>
-  mutate(
-    `head shift` = sqrt((frame_mid_x - cal_frame_mid_x)^2 + (frame_mid_y - cal_frame_mid_y)^2) / cal_frame_iod,
-    `interocular distance change` = abs(frame_iod / cal_frame_iod - 1),
-    `head yaw change` = abs(frame_yaw - cal_frame_yaw),
-    `head pitch change` = abs(frame_pitch - cal_frame_pitch),
-    `head roll change` = abs(frame_roll - cal_frame_roll),
-    `time since calibration` = (elapsed - cal_end) / 60000,
-    `eye aspect ratio` = frame_openness,
-    blinks = as.numeric(frame_openness < 0.7 * median(frame_openness, na.rm = TRUE)),
-    `image sharpness` = frame_sharpness,
-    `eye brightness change` = abs(frame_brightness - cal_frame_brightness),
-    `model quality weight` = if_else(tracker == "SaccadeJS", quality_weight, NA_real_),
-    .by = session) |>
+frame_level <- frame_measures(fwd_frames, calibration_reference) |>
+  mutate(`model quality weight` = if_else(tracker == "SaccadeJS", quality_weight, NA_real_)) |>
   select(session, tracker, error, all_of(names(WITHIN_GROUPS))) |>
   pivot_longer(-c(session, tracker, error), names_to = "covariate", values_to = "value") |>
   filter(is.finite(value), is.finite(error))
@@ -2123,7 +2094,7 @@ camera_image <- function(measure) {
 }
 ```
 
-As described in @sec-data-recording, we measured several different features of sessions (participant level variation) and individual frames (single prediction level variation). [SUPPLEMENTARY MATERIAL] contains detailed descriptions of the methods for measuring each of these characteristics. Here we focus on what measurable aspects of the participant and individual video frames predict gaze accuracy. We report Spearman rank correlations because of the strong skew of the error distribution.
+As described in @sec-data-recording, we measured several different features of sessions (participant level variation) and individual frames (single prediction level variation). Each measure is defined, with the code that computes it, in `R/measures.R` in the paper's repository (<https://github.com/jspsych/saccadejs-paper>). Here we focus on what measurable aspects of the participant and individual video frames predict gaze accuracy. We report Spearman rank correlations because of the strong skew of the error distribution.
 
 @fig-covariates shows the correlations of participant-level features. Of the `r length(COVARIATES)` characteristics we measured, `r nrow(filter(cov_sig, tracker == "SaccadeJS"))` are statistically significant predictors of SaccadeJS's accuracy after Holm correction (`r nrow(filter(cov_sig, tracker == "WebGazer"))` for WebGazer: the first two below). Participants with (1) more variance in their head roll over the course of the session (`r rho_of("head roll SD", "SaccadeJS")`), (2) lower contrast in the eye images (`r rho_of("eye contrast", "SaccadeJS")`), (3) smaller interocular distance -- which likely reflects sitting further away from the camera (`r rho_of("interocular distance", "SaccadeJS")`), and (4) blurrier images (`r rho_of("image sharpness", "SaccadeJS")`) had more error in the gaze predictions. 
 
