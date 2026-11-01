@@ -234,7 +234,7 @@ Participants in the training dataset completed a series of 144 trials; participa
 
 ```{r}
 #| label: fig-task
-#| fig-cap: "The data-collection task. (A) One trial. A target appeared at a new position; after 1,000 ms for the eyes to reach it, the webcam recorded 500 ms of video. On detection trials the target then turned red and black until the participant pressed the spacebar. The target was an 8 px white dot with a 6 px black border. (B) The 144 target positions: a 16 × 9 grid spanning 5–95% of the screen's width and height. (C) The sessions. Each block showed 48 positions drawn without replacement, in random order, so three blocks covered all 144; a break followed each block. Held-out participants saw all 144 twice, in two phases. Blue marks recorded video."
+#| fig-cap: "The data collection task. (A) The timeline for a single trial. Recording only occurred in the 1,000 - 1,500 ms window. (B) The 16x9 grid of 144 points. (C) Data collection for training sessions and held-out evaluation sessions."
 #| fig-width: 6.5
 #| fig-height: 3.3
 # (A) One trial: three screens along a time axis. (B) The 144 positions. (C) The sessions.
@@ -316,7 +316,7 @@ panel_c <- ggplot(sessions) +
   scale_fill_identity() +
   geom_text(aes(x, y, label = label), size = 2.1, color = INK, lineheight = 0.9) +
   annotate("text", x = -0.1, y = row_y, hjust = 1, size = 2.6, fontface = "bold", color = INK,
-           lineheight = 0.9, label = c("Training\n(2023–24)", "Held-out\n(2024–25)")) +
+           lineheight = 0.9, label = c("Training", "Eval.")) +
   annotate("segment", x = phase_x[c(1, 1, 2)], xend = phase_x[c(1, 1, 2)] + phase_w,
            y = c(row_y[["2"]], 0, 0) + 0.52, yend = c(row_y[["2"]], 0, 0) + 0.52,
            color = INK_2, linewidth = 0.35) +
@@ -348,9 +348,9 @@ The released dataset includes these raw `.webm` files and preprocessed image fra
 #| label: fig-conditions
 #| fig-width: 6.5
 #| fig-height: 3.4
-#| fig-cap: !expr sprintf("The recording conditions of the %s training participants (gray, above each row's center line) and %d held-out participants (gold, below). Each participant contributes their median over the frames in which a face was found; each half of a row is a histogram of these, as shares of the set's participants. Each row has its own scale, from the 1st to the 99th percentile of both sets; the few participants outside it are left out. Distance is the interocular distance as a share of the image's width; its change is the standard deviation of its log, so roughly a percentage. Left–right movement is the standard deviation of the head's horizontal position, as a share of the image's width. Sharpness is the variance of the eye image's Laplacian. Noise is the mean change of the 144 × 36 eye image from the frame before, in gray levels.", fn(ds_n("training")), ds_n("held-out"))
+#| fig-cap: !expr sprintf("Properties of the recordings for %s training participants (gray, above each row's center line) and %d held-out participants (light blue, below). Data are the median values for each participant. Participants with values below the 1st and above the 99th percentile are excluded to facilitate readability.", fn(ds_n("training")), ds_n("held-out"))
 # Training is the bulk of the dataset, in a quiet gray; the held-out set is the accent.
-SPLIT_COLORS <- c(training = "#5c5b57", `held-out` = "#d4a017")
+SPLIT_COLORS <- c(training = "#5c5b57", `held-out` = "#8fb8e6")
 # Each measure: its label and how it is computed from the summary's columns.
 CONDITIONS <- tribble(
   ~label,                                    ~value,
@@ -433,7 +433,7 @@ Once the network is trained, the regression is the only part fit for each new pa
 
 ```{r}
 #| label: fig-model
-#| fig-cap: "The SaccadeJS model. Every camera frame is cropped to both eyes and passed through the embedding network, which outputs a 128-unit embedding and a quality weight. For each participant, a weighted ridge regression maps the embeddings of the calibration frames to their known targets; the resulting mapping turns each new frame's embedding into a gaze estimate. Blue parts are learned; the ridge regression is solved afresh for each participant, and training passes gradients through it."
+#| fig-cap: "The SaccadeJS model. A cropped image of the eyes is transformed by the embedding network into a 128-unit embedding and a quality weight. For each participant, a weighted ridge regression of all calibration frames produces a mapping for new frames. The blue boxes are trained offline on the entire training set. The ridge regression is computed for each participant."
 #| fig-width: 6.5
 #| fig-height: 2.65
 # The top row runs once per camera frame; the bottom row once per participant, from the top
