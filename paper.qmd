@@ -862,7 +862,7 @@ We began by assessing model accuracy using a typical calibration routine. We cal
 
 ```{r}
 #| label: fig-eval-accuracy
-#| fig-cap: "Accuracy of the model on held-out participants after a 25-point calibration on the first phase, scored on the second. (A) Each participant's median error; the line marks the median participant. (B) Error by target position, as a multiple of each participant's median error over the whole screen: the median across participants at each of the 144 positions. Green is better than the participant's average, purple worse. Plus signs mark the 25 calibration positions."
+#| fig-cap: "Accuracy of the model after a 25-point calibration. (A) The median error of each participant. Black line is the median of the distribution. (B) Median error by screen location, as a multiple of each participant's median error over the whole screen. Crosses indicate the 25 calibration points."
 #| fig-width: 6.5
 #| fig-height: 2.8
 eval_hist <- ggplot(eval_by_participant, aes(error)) +
@@ -901,7 +901,7 @@ We also assessed whether concentrating calibration in one region of the screen c
 
 ```{r}
 #| label: fig-eval-calibration
-#| fig-cap: "Calibration and accuracy on held-out participants. (A) Median error by the first phase's calibration grid, from a triangle of three points to all 144 positions, scored on the second phase, for participants for whom every grid was complete; one dot per participant, and ticks mark each grid's median. The icons show where each grid's points are on the screen. (B) What fewer points cost: how much higher each participant's median error is with each grid in A than with all 144 points, in percent of the screen diagonal, against the number of points from 3 to 45 (with 144 points, this is zero by definition). The line and dots are the median participant, and the bands span the middle half (dark) and middle 80% (light) of participants. The top axis gives the calibration time at this task's pace of about one point every 2 s. (C) Time since calibration: each participant's median error on the positions outside the 25-point grid, for each phase calibrated on its own grid (light blue) and for the second phase calibrated on the first phase's grid, minutes earlier (dark blue); every calibration has the same 25 points. Ticks mark each group's median. (D) Error by target position after calibrating on 25 points spread over the screen (the standard grid) or packed into its middle, for the same participants as in A: each as a multiple of the participant's median error over the screen with the spread grid, the median across participants at each of the 144 positions. Green is better than that, purple worse. Plus signs mark each layout's calibration positions."
+#| fig-cap: "The effect of different calibration choices on accuracy. (A) Median error for different numbers of calibration points. One dot per participant; ticks mark the median. (B) The cost of fewer calibration points relative to the full grid of 144. Time estimates (top) are based on 2 seconds per point. Line is the median; darker band is the middle 50% of participants; lighter band is the middle 80%. (C) Accuracy when calibration points are in the same phase vs. different phase of the experiment. Each point is the median error on all target locations that are not in the 25-point calibration grid. (D) Error by location after calibrating on 25 points distributed across the screen or concentrated into the middle. Crosses are the calibration positions."
 #| fig-width: 6.5
 #| fig-height: 5.8
 # Under each grid, an icon of where its points are on the screen.
@@ -1005,7 +1005,7 @@ We also measured features at the individual image level. One class of these feat
 
 ```{r}
 #| label: fig-eval-covariates
-#| fig-cap: !expr sprintf("Who is tracked well. (A) Spearman correlations across %d held-out participants between each condition, over the frames scored, and median error, strongest first. A negative ρ means participants with more of the condition were tracked more accurately. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. The icons sketch a low (left) and a high (right) value of each condition. The SDs are over the session, of the head's position in the camera image (toward and away from the camera, as the interocular distance SD, left–right and up–down) and of its roll. Head yaw and roll are sizes, whichever way the head turned or tilted. The camera's frame rate is from the frames' times in each trial's video, where they were readable (%d participants). (B) Each participant's median error by whether they wore glasses and whether their webcam was built in or separate, as they reported; ticks mark each group's median.", n_eval_scored, nrow(eval_cov_tests), sum(is.finite(eval_people$frame_rate)))
+#| fig-cap: !expr sprintf("How error correlates with observable characteristics of the recording at the group level. Each factor reported is measured for each subject and correlated with their overall median error. (A) Spearman correlations between changes in various observable characteristics of the images and the median error. Icons show the direction of change; for example, increases in the model's calibration weight are correlated with lower error, while increases in the standard deviation of interocular distance throughout the recording are correlated with higher error. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. (B) Each participant's median error by whether they wore glasses and whether their webcam was integrated or separate. Ticks mark each group's median.", nrow(eval_cov_tests))
 #| fig-width: 6.5
 #| fig-height: 7.2
 # Strongest correlation at the top. Row numbers count up from the bottom, as the icon panel expects.
@@ -1046,9 +1046,11 @@ eval_group_plot <- ggplot(eval_groups, aes(label, error)) +
   (eval_group_plot + labs(tag = "B")) +
   plot_layout(heights = c(2.4, 1))
 
+```
+
 ```{r}
 #| label: fig-eval-within
-#| fig-cap: "Within held-out participants: each participant's Spearman correlation between a predictor on each frame and that frame's error, on the frames of the second phase after calibrating on the first. One dot per participant; ticks mark the median participant, solid where the median differs from zero (Wilcoxon signed-rank, Holm-corrected over all tests) and dashed where it does not. Drift is measured from the participant's own calibration frames. The icons sketch a low (left) and a high (right) value of each predictor; in the drift icons, the dashed outline is where the head was during calibration."
+#| fig-cap: "How changes within a session correlate with error. Each factor listed was measured for all frames within a subject and correlated with the error of those frames. Each dot is one participant. The vertical black lines mark the median. All correlations were statistically significant (Wilcoxon signed-rank, Holm-corrected over all tests). Drift is measured from the participant's calibration frames. The icons sketch a low (left) and a high (right) value of each predictor."
 #| fig-width: 6.5
 #| fig-height: 5
 # Rows grouped, each group under a heading, as in the validation study's figure; within a group,
@@ -1098,55 +1100,13 @@ icon_panel(names(eval_within_rows), eval_within_rows, n_rows = nrow(eval_within_
 
 To facilitate use in the research community, we have developed a JavaScript library that can be used to deploy SaccadeJS on any webpage, including those generated by popular experiment building tools like PsychoPy/PsychoJS [@peirce2019], lab.js [@henninger2022], and jsPsych [@deleeuw2015; @deleeuw2023]. The library is published on `npm` as `@saccadejs/core`. Documentation is available at <https://saccade.jspsych.org>. We do not go into depth on the use of the library in the paper, as it is liable to be out of date as the project evolves. Please refer to the online documentation for tutorials, guides, and reference material.
 
-Every step runs in the participant's browser, on each frame of the webcam's video (@fig-browser). Webcam images are first processed by MediaPipe's Face Landmarker [@kartynnik2019; @grishchenko2020], which places 478 landmarks on the face. From these we crop the 144 × 36 pixel image of the eyes, with the same preprocessing we used to build the training data (@sec-data).
+Every step runs in the participant's browser, on each frame of the webcam's video. Webcam images are first processed by MediaPipe's Face Landmarker [@kartynnik2019; @grishchenko2020], which places 478 landmarks on the face. From these we crop the 144 × 36 pixel image of the eyes, with the same preprocessing we used to build the training data (@sec-data).
 
 The trained network is exported to ONNX (Open Neural Network Exchange), an open format for neural networks that lets a model trained in one framework run in another [@onnx2019]. In the browser, ONNX Runtime Web [@onnxruntime2021] runs the model on the participant's graphics card through the WebGPU API [@webgpu2026], or, where WebGPU is not available, on the CPU through WebAssembly. The model file is about 20 MB.
 
 In training, the model processes a set of calibration images alongside each target image. In inference, each image needs to pass through the network only once. The ridge regression is fit once, from the embeddings of the calibration images. After that, each prediction costs one pass through the network to get the frame's embedding, plus applying the fitted regression to that embedding to get the gaze coordinates.
 
 As we show in @sec-hardware, not all machines are fast enough to run these predictions as fast as the camera samples new images. In our validation study, machines with Apple Silicon chips or NVIDIA graphics cards ran the model in real time, machines with integrated Intel or AMD graphics ran it somewhat slower than real time, and machines without WebGPU, which run the model on the CPU, took about a quarter of a second per frame. In cases where the machine cannot keep up with real-time processing, one option is to save the cropped eye images in memory and process them on one or more separate background threads while the main thread is running the experiment. Our library incorporates a deferred mode to enable this. In a worst case, cropped eye images could be saved as part of the experiment data and the model could be run offline instead of in the browser.
-
-```{r}
-#| label: fig-browser
-#| fig-cap: "How SaccadeJS turns the webcam's video into gaze samples in the browser. Each box gives a step, what it produces, and what runs it; when the GPU route is unavailable, MediaPipe falls back to the CPU and the embedding network to WebAssembly. The calibration and the time sync (@sec-timing) run once, before gaze is recorded, and supply the ridge regression's mapping and the lag that is subtracted from each frame's timestamp. The blue step is the learned embedding network of @fig-model."
-#| fig-width: 6.5
-#| fig-height: 2.1
-# Same box style as fig-model: a bold title, a line or two of detail, and what runs the step in
-# italics at the bottom.
-browser_boxes <- tribble(
-  ~x,    ~y,   ~fill,   ~title,               ~detail,                                 ~runs,
-  1.1,   3.0,  FIXED,   "Webcam",             "640 × 480 video",                       "getUserMedia",
-  3.4,   3.0,  FIXED,   "Face landmarks",     "MediaPipe Face\nLandmarker",            "WebGL",
-  5.7,   3.0,  FIXED,   "Eye crop",           "144 × 36, gray,\ncontrast-equalized",   "JavaScript",
-  8.0,   3.0,  LEARNED, "Network",            "embedding x and\nweight w (20 MB)",     "ONNX, on WebGPU",
-  10.3,  3.0,  FIXED,   "Ridge regression",   "gaze = xA",                             "JavaScript",
-  12.6,  3.0,  FIXED,   "Gaze sample",        "x, y and\ncapture time − lag",          "to the experiment",
-  10.3,  0.95, FIXED,   "Calibration",        "fits A",                                "saccade-calibrate",
-  12.6,  0.95, FIXED,   "Time sync",          "measures the lag",                      "saccade-time-sync"
-) |>
-  mutate(w = 1.95, h = if_else(y > 2, 1.45, 1.05),
-         title_y = y + h / 2 - 0.22, runs_y = y - h / 2 + 0.17,
-         detail_y = if_else(y > 2, y + 0.02, y - 0.02))
-browser_arrows <- tibble(
-  x = c(2.08, 4.38, 6.68, 8.98, 11.28, 10.3, 12.6),
-  y = c(3.0, 3.0, 3.0, 3.0, 3.0, 1.48, 1.48),
-  xend = c(2.42, 4.72, 7.02, 9.32, 11.62, 10.3, 12.6),
-  yend = c(3.0, 3.0, 3.0, 3.0, 3.0, 2.27, 2.27))
-
-ggplot(browser_boxes) +
-  annotate("text", x = 9.15, y = 0.95, label = "Once, before\nrecording", hjust = 1, lineheight = 0.9,
-           fontface = "bold", size = 3, color = INK_2) +
-  geom_rect(aes(xmin = x - w / 2, xmax = x + w / 2, ymin = y - h / 2, ymax = y + h / 2, fill = fill),
-            color = INK_2, linewidth = 0.3) +
-  scale_fill_identity() +
-  geom_text(aes(x, title_y, label = title), fontface = "bold", size = 2.6, color = INK) +
-  geom_text(aes(x, detail_y, label = detail), size = 2.25, color = INK_2, lineheight = 0.9) +
-  geom_text(aes(x, runs_y, label = runs), fontface = "italic", size = 2.15, color = INK_2) +
-  geom_segment(data = browser_arrows, aes(x, y, xend = xend, yend = yend), color = INK_2,
-               linewidth = 0.35, arrow = arrow_head) +
-  coord_fixed(xlim = c(0, 13.75), ylim = c(0.35, 3.8), expand = FALSE) +
-  theme_void()
-```
 
 ## Timing Correction {#sec-timing}
 
@@ -1317,7 +1277,7 @@ As shown in panel A of @fig-forward, SaccadeJS is more accurate than WebGazer fo
 
 ```{r}
 #| label: fig-forward
-#| fig-cap: !expr sprintf("Accuracy after one 25-point calibration. (A) Each participant's median error, WebGazer against SaccadeJS. Above the solid diagonal, SaccadeJS was more accurate; dotted lines mark 2× and 4×. The diamond marks the median on each axis. (B) The share of test frames within a given distance of the target. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Every frame's gaze (dots) for the median participant (%s, ranked by SaccadeJS's error) on the nine points of the validation grid (crosses), on their own screen, in the block after calibration.", gaze_session)
+#| fig-cap: Comparing accuracy between SaccadeJS and WebGazer after a 25-point calibration. (A) Each participant's median error with both tools. SaccadeJS was more accurate for all points above the solid line. The dotted lines mark 2× and 4× the error, and the diamond marks the median. (B) The percentage of predictions within a given error level. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Individual predictions on the nine validation points from the median participant according to SaccadeJS error. Predictions are from the block after calibration.
 #| fig-width: 6.5
 #| fig-height: 6.2
 # (A) Participants. Log axes: a few very poor sessions would otherwise squeeze the rest into a
@@ -1410,7 +1370,7 @@ SaccadeJS's precision was better for `r sum(prec_wide$webgazer > prec_wide$sacca
 
 ```{r}
 #| label: fig-precision
-#| fig-cap: !expr sprintf("Precision after one 25-point calibration, as how much gaze moves around each fixation's own mean. (A) Each participant's standard deviation, WebGazer against SaccadeJS. Above the solid diagonal, SaccadeJS was more precise; dotted lines mark 2× and 4×. The diamond marks the median on each axis. (B) The share of frames within a given distance of their fixation's mean gaze. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) Every test frame's offset from its fixation's mean gaze, all fixations overlaid at the center of the participant's own screen, for the median participant (%s, ranked by SaccadeJS's standard deviation). Circles mark that participant's standard deviation.", prec_session)
+#| fig-cap: Comparing precision between SaccadeJS and WebGazer after a 25-point calibration. We measured precision by centering each cluster of predictions (taken from a single fixation) on its own mean. (A) Each participant's standard deviation with both tools. SaccadeJS was more accurate for all points above the solid line. The dotted lines mark 2× and 4× the standard deviation, and the diamond marks the median. (B) The percentage of frames within a given precision. The line is the median participant; bands span the middle half (dark) and middle 80%% (light) of participants. (C) All predictions for the median subject (based on SaccadeJS's standard deviation), centered as if each target appeared in the middle of the screen. The circles mark the standard deviation for the participant.
 #| fig-width: 6.5
 #| fig-height: 6.6
 # (A) Participants, on log axes as for accuracy.
@@ -1540,7 +1500,7 @@ To give a sense of the methodological impact of the improved accuracy and precis
 
 ```{r}
 #| label: fig-squares
-#| fig-cap: "The squares each tracker could tell apart on a 16:9 screen, for the participants at the 25th percentile, median and 75th percentile, with their own test samples drawn around each square's center (cross). Labels count squares on this screen."
+#| fig-cap: "The squares each tracker could tell apart with 90% of the gaze samples falling inside the correct square on a 16:9 screen. We selected the participants at the 25th, 50th, and 75th percentiles. Gaze predictions are sampled from all the tracked locations and centered as if the participant was looking at the fixation point at the center of the square."
 #| fig-width: 6.5
 #| fig-height: 7.2
 # The reference screen's width and height, in percent of its diagonal.
@@ -1622,7 +1582,7 @@ extreme_cell <- function(tr, which) {
 
 ```{r}
 #| label: fig-screen-map
-#| fig-cap: "Error by target position, as a multiple of each participant's error over the whole screen: the median across participants in each cell. Green is better than the participant's average, purple worse."
+#| fig-cap: "Error by target position, as a multiple of each participant's median error over the whole screen. The median for each cell (across all participants) is shown as text."
 #| fig-width: 6.5
 #| fig-height: 2.4
 ggplot(screen_map, aes(cx, cy, fill = rel)) +
@@ -1651,13 +1611,14 @@ by_grid <- fwd_all |>
 grid_summary <- by_grid |> summarise(error = median(error), .by = c(tracker, grid))
 grid_med <- function(tr, n) f2(value_of(grid_summary, error, tracker == tr, grid == n))
 
-# Time since calibration: every block's 25-point calibration, scored on the test points of its
-# own block and each later one, pooled over calibration blocks at each lag.
+# Time since calibration: the first block's 25-point calibration, scored on the test points of
+# its own block and each later one, so every lag has the same calibration and as many points.
 # Test points only: a block's own grid points are its calibration, so only test points can be
-# scored at every lag.
+# scored at every lag. (`lagged` keeps every block's calibration, for the recalibration below.)
 lagged <- fwd_all |> filter(grid == 25, point_type == "test")
-by_lag <- lagged |> summarise(error = median(error), .by = c(session, tracker, lag))
-lag_minutes <- lagged |>
+first_calibration <- lagged |> filter(block == min(block), .by = session)
+by_lag <- first_calibration |> summarise(error = median(error), .by = c(session, tracker, lag))
+lag_minutes <- first_calibration |>
   distinct(session, lag, station, elapsed, cal_end) |>
   summarise(minutes = median((elapsed - cal_end) / 60000), .by = lag) |>
   arrange(lag)
@@ -1762,7 +1723,7 @@ Given the small gains in increasing the number of calibration points and the lar
 
 ```{r}
 #| label: fig-calibration
-#| fig-cap: "Median error by calibration size (left; the first block's calibration, scored on every station of the two later blocks), by time since a 25-point calibration (middle; every block's calibration, scored on its own and later blocks' test points, labelled with the approximate time since calibration: the median elapsed seconds, including the rest between blocks), and with and without recalibrating (right; each block's 18 test points, from one 25-point calibration on the first block or a fresh 9-point calibration on each block's own grid). One dot per participant; ticks mark each group's median. In the right panel, open dots are the 9-point recalibration."
+#| fig-cap: "How calibration choices affect error. All: Each dot is the median error across all predicted points for one subject. The horizontal black bar is the median of the group. Left: Calibration error with 9, 13, and 25 calibration points. Middle: After calibrating with a 25-point grid in the first block, we measure accuracy in the same block, one block later, and two blocks later. Accuracy gets worse over time. Right: Using a 9-point calibration every block prevents calibration drift. The gray horizontal lines are the medians from the middle panel to facilitate comparison. Block one accuracy is slightly worse than the one-time 25-point calibration because of the increased number of calibration points, but is slightly better in blocks 2 and 3."
 #| fig-width: 6.5
 #| fig-height: 3.8
 # Approximate: the median across participants of the elapsed time from the end of calibration,
@@ -1785,22 +1746,29 @@ size_and_time <- ggplot(size_and_time_data, aes(x, error, color = tracker, group
   facet_wrap(~panel, scales = "free_x") +
   labs(x = NULL, y = "Each participant's median error\n(% of diagonal, log scale)")
 
-# Recalibrating: for each block, one dot per participant, tracker and scheme, the four groups side
-# by side with a tick at each one's median; the 9-point recalibration's dots are open.
+# Recalibrating: for each block, one dot per participant and tracker with a fresh 9-point
+# calibration on that block's own grid, and a tick at its median. A gray tick marks the median
+# with the one 25-point calibration on the first block, the middle panel's data, for comparison.
 recal_data <- by_scheme_block |>
-  mutate(block = factor(paste("Block", block_number)), series = interaction(scheme, tracker))
-RECAL_DODGE <- position_dodge(width = 0.85)
-recalibrating <- ggplot(recal_data, aes(block, error, color = tracker, shape = scheme, group = series)) +
-  geom_point(position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.85, seed = 1),
+  filter(scheme == SCHEMES[2]) |>
+  mutate(block = factor(paste("Block", block_number)))
+once_medians <- by_scheme_block |>
+  filter(scheme == SCHEMES[1]) |>
+  summarise(error = median(error), .by = c(block_number, tracker)) |>
+  mutate(block = factor(paste("Block", block_number)))
+RECAL_DODGE <- position_dodge(width = 0.75)
+recalibrating <- ggplot(recal_data, aes(block, error, color = tracker, group = tracker)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.25, dodge.width = 0.75, seed = 1),
              size = 0.4, alpha = 0.5) +
+  geom_errorbar(data = once_medians, aes(ymin = error, ymax = error), position = RECAL_DODGE,
+                width = 0.6, color = "#a3a29c", linewidth = 0.5) +
   stat_summary(fun = median, fun.min = median, fun.max = median, geom = "errorbar",
-               position = RECAL_DODGE, width = 0.7, color = INK, linewidth = 0.5) +
+               position = RECAL_DODGE, width = 0.6, color = INK, linewidth = 0.5) +
   scale_color_manual(values = TRACKER_COLORS, guide = "none") +
-  scale_shape_manual(values = c(16, 1)) +
-  facet_wrap(~ "Recalibrating each block") +
+  facet_wrap(~ "Recalibrating on 9 points each block") +
   # It shares the left panels' y axis, so its labels are left off.
   theme(axis.text.y = element_blank()) +
-  labs(x = NULL, y = NULL, shape = NULL)
+  labs(x = NULL, y = NULL)
 
 # Both legends together, along the top; one y range for all three panels; horizontal gridlines only.
 error_min <- min(size_and_time_data$error, recal_data$error)
@@ -1808,8 +1776,7 @@ error_max <- max(size_and_time_data$error, recal_data$error)
 (size_and_time + recalibrating + plot_layout(widths = c(2, 1.2), guides = "collect")) &
   scale_y_log10(limits = c(error_min, error_max), breaks = c(1, 2, 5, 10, 20, 50),
                 labels = \(x) paste0(x, "%")) &
-  guides(color = guide_legend(override.aes = list(size = 1.6, alpha = 1)),
-         shape = guide_legend(override.aes = list(size = 1.6, alpha = 1))) &
+  guides(color = guide_legend(override.aes = list(size = 1.6, alpha = 1))) &
   theme(strip.text = element_text(face = "bold", hjust = 0), legend.position = "top",
         panel.grid.major.x = element_blank())
 ```
@@ -1846,16 +1813,12 @@ lat_summary <- lat_sessions |>
             .by = tracker)
 lag_quantile <- function(q) f0(quantile(camera_lag$lag_ms, q, na.rm = TRUE, names = FALSE))
 
-# A reference distribution from the same kind of task: participants' median pro-saccade latency in
-# Bargary et al. (2017, Vision Research 141, 157-169; over 1000 healthy young adults; a step to
-# 3-15 degrees after a random 500-1500 ms foreperiod), digitized from their Fig. 1 (see
-# reference/digitize_bargary2017.R). They measured saccade onset; these latencies are the
-# saccade's midpoint, about half its duration later. By Carpenter's (1988) duration of
-# 21 + 2.2 ms per degree, that is 22-27 ms for 10-15 degree saccades.
-MIDPOINT_OFFSET_MS <- 25
-bargary <- read_csv("reference/bargary2017_prosaccade_latency.csv", show_col_types = FALSE)
-bargary_n <- sum(bargary$count)
-bargary_mean <- sum(bargary$count * (bargary$from_ms + bargary$to_ms) / 2) / bargary_n
+# A laboratory reference: each participant's median latency in GazeBase's random-saccade task
+# (Griffith et al., 2021), timed at the midpoint crossing like ours, from 1000 Hz EyeLink gaze (see
+# reference/gazebase_ran_latency.R). The file also has each participant's median onset, for how
+# much later the midpoint is than the onset most studies report.
+gazebase <- read_csv("reference/gazebase_ran_latency.csv", show_col_types = FALSE)
+gazebase_onset_gap <- median(gazebase$midpoint_ms - gazebase$onset_ms)
 # The two trackers' estimates of the same participant's latency, from the same frames.
 tracker_agreement <- lat_sessions |>
   select(session, tracker, raw) |>
@@ -1863,23 +1826,25 @@ tracker_agreement <- lat_sessions |>
   summarise(r = cor(SaccadeJS, WebGazer, use = "complete"))
 lat <- function(tr, column) value_of(lat_summary, {{ column }}, tracker == tr)
 # The distribution of participants' median latency, for the text: median (IQR).
-lat_dist <- function(tr, column) {
-  q <- quantile(filter(lat_sessions, tracker == tr)[[column]], c(0.25, 0.5, 0.75), names = FALSE)
+median_iqr <- function(v) {
+  q <- quantile(v, c(0.25, 0.5, 0.75), names = FALSE)
   sprintf("%s ms (IQR %s–%s ms)", f0(q[2]), f0(q[1]), f0(q[3]))
 }
+lat_dist <- function(tr, column) median_iqr(filter(lat_sessions, tracker == tr)[[column]])
+gazebase_dist <- median_iqr(gazebase$midpoint_ms)
 # The delays the plugin judged reliable, the ones the latency analysis uses.
 lag_reliable <- camera_lag |> filter(timing_verdict == "OK", is.finite(lag_ms)) |> pull(lag_ms)
 ```
 
-As described in @sec-timing, the temporal accuracy of webcam eye tracking has historically been poor due to unmeasured and unknown delays between the clock that controls the display and the clock that timestamps video frames. We developed a procedure that measures this delay and corrects for it. In this Prolific experiment, we do not have ground truth timing measurements -- however, the timing of a saccade to a new target when the current target disappears at the same moment is known to take around 175–200 ms [@saslow1967; @bargary2017]. In particular, @bargary2017 measured saccade latency in `r format(bargary_n, big.mark = ",")` healthy young adults with a step task like ours, in which a target jumped 3–15° after a random 500–1,500 ms delay; participants' median latencies averaged `r f0(bargary_mean)` ms. In this analysis, we check whether the correction algorithm produces estimates of saccade latency that are in line with these data.
+As described in @sec-timing, the temporal accuracy of webcam eye tracking has historically been poor due to unmeasured and unknown delays between the clock that controls the display and the clock that timestamps video frames. We developed a procedure that measures this delay and corrects for it. In this Prolific experiment, we do not have ground truth timing measurements -- however, the timing of a saccade to a new target when the current target disappears at the same moment is known to take around 175–200 ms [@saslow1967]. As a laboratory reference, we used the random-saccade task of GazeBase [@griffith2021], an open dataset in which `r nrow(gazebase)` young adults followed a target that jumped to a new position within ±15° horizontally and ±9° vertically once a second, recorded at 1,000 Hz with an EyeLink 1000. In this analysis, we check whether the correction algorithm produces estimates of saccade latency that are in line with these data.
 
 We measured camera delay using the time sync plugin at the start of the experiment. As shown in @fig-latency A, the estimated delays had a median of `r f0(median(lag_reliable))` ms (range `r f0(min(lag_reliable))`–`r f0(max(lag_reliable))` ms) among the `r length(lag_reliable)` participants whose measurement the plugin judged reliable. To measure saccade timing with the variable and low sampling rates of the webcams, we estimated when the gaze crossed the midpoint of a line between the old and new targets. We applied a linear interpolation of gaze so that the sampling rate of the camera did not bias the measurement. Without it, the crossing would be placed at the first frame past the midpoint, which comes later on average the fewer frames a camera records, so slower cameras would produce slower saccades. We used the repeating calibration strategy described in @sec-calibration to improve accuracy of the estimates.
 
-As shown in @fig-latency B, without correction there is a positive relationship between the measured camera delay and the saccade latency (r = `r f2(lat("SaccadeJS", r_raw_lag))`, slope `r f2(lat("SaccadeJS", slope_raw_lag))` ms per ms). This is as expected for uncorrected measurements. After subtracting out the camera delay for each participant, the estimate of saccade timing drops from `r lat_dist("SaccadeJS", "raw")` to `r lat_dist("SaccadeJS", "corrected")` for SaccadeJS, and from `r lat_dist("WebGazer", "raw")` to `r lat_dist("WebGazer", "corrected")` for WebGazer (@fig-latency C). The latencies reported by @bargary2017 mark the saccade's onset and ours its midpoint, about half a saccade's duration later [@carpenter1988], so we shifted their distribution `r MIDPOINT_OFFSET_MS` ms later. When we compare our estimates to this shifted distribution, we see that the corrected estimates of saccade timing are in line with the expected distribution. 
+As shown in @fig-latency B, without correction there is a positive relationship between the measured camera delay and the saccade latency (r = `r f2(lat("SaccadeJS", r_raw_lag))`, slope `r f2(lat("SaccadeJS", slope_raw_lag))` ms per ms). This is as expected for uncorrected measurements. After subtracting out the camera delay for each participant, the estimate of saccade timing drops from `r lat_dist("SaccadeJS", "raw")` to `r lat_dist("SaccadeJS", "corrected")` for SaccadeJS, and from `r lat_dist("WebGazer", "raw")` to `r lat_dist("WebGazer", "corrected")` for WebGazer (@fig-latency C). We timed GazeBase's saccades the same way as ours, when gaze crossed halfway to the new target; their participants' median latencies were `r gazebase_dist`. The midpoint comes about half a saccade's duration after the saccade's onset [@carpenter1988], the time most studies report; in GazeBase, a median of `r f0(gazebase_onset_gap)` ms after. When we compare our estimates to GazeBase's, we see that the corrected estimates of saccade timing are in line with the laboratory distribution. 
 
 ```{r}
 #| label: fig-latency
-#| fig-cap: "Camera delay and saccade latency. (A) Each participant's camera delay, measured by the SaccadeJS time-sync plugin, shaded by whether the plugin judged the measurement reliable; flagged participants are left out of B and C. (B) Each participant's median saccade latency from SaccadeJS before correction, against their camera delay; the dashed line has a slope of 1, through the mean. (C) Each participant's median latency before and after subtracting their camera delay; boxes span the middle half of participants. Gray: the distribution of participants' median latency in a similar step task, from 1,026 young adults in @bargary2017, shifted 25 ms later from saccade onset to its midpoint."
+#| fig-cap: "Camera delay and saccade latency. (A) Each participant's camera delay, measured by the SaccadeJS time-sync plugin, shaded by whether the plugin judged the measurement reliable; flagged participants are left out of B and C. (B) Each participant's median saccade latency from SaccadeJS before correction, against their camera delay; the dashed line has a slope of 1, through the mean. (C) Each participant's median latency before and after subtracting their camera delay; boxes span the middle half of participants. Gray: each participant's median latency in GazeBase's random-saccade task [@griffith2021], recorded in the laboratory at 1,000 Hz and timed the same way."
 #| fig-width: 6.5
 #| fig-height: 5.6
 # (A) The camera delay.
@@ -1906,36 +1871,31 @@ raw_vs_lag_panel <- ggplot(saccade_latency, aes(lag_ms, raw)) +
   labs(x = "Camera delay (ms)", y = "Median latency,\nuncorrected (ms)")
 
 # (C) Before and after the correction, as two sections. Rows: SaccadeJS on top, then WebGazer,
-# then (corrected only) Bargary et al.'s distribution, moved to the midpoint and drawn as a
-# histogram scaled to its row.
-ROW_OF <- c("SaccadeJS" = 2, "WebGazer" = 1)
-row_labels <- c(sprintf("Bargary et al. (2017)\nshifted +%d ms", MIDPOINT_OFFSET_MS), "WebGazer", "SaccadeJS")
-bargary_bars <- bargary |>
-  mutate(share = count / max(count),
-         xmin = from_ms + MIDPOINT_OFFSET_MS, xmax = to_ms + MIDPOINT_OFFSET_MS,
-         ymin = -0.35, ymax = -0.35 + 0.7 * share)
+# then (corrected only) GazeBase's participants.
+ROW_OF <- c("SaccadeJS" = 2, "WebGazer" = 1, "GazeBase" = 0)
+row_labels <- c("GazeBase\n(laboratory)", "WebGazer", "SaccadeJS")
 latency_long <- lat_sessions |>
   pivot_longer(c(raw, corrected), names_to = "correction", values_to = "latency") |>
+  bind_rows(tibble(tracker = "GazeBase", correction = "corrected", latency = gazebase$midpoint_ms)) |>
   mutate(row = ROW_OF[tracker])
-latency_range <- range(latency_long$latency, bargary_bars$xmin, bargary_bars$xmax)
-# One section of the panel: the participants' latencies, and optionally the reference rows.
-latency_section <- function(which, title, reference = NULL) {
-  ggplot(filter(latency_long, correction == which), aes(latency, row)) +
-    { if (!is.null(reference)) geom_rect(data = reference, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
-                                         inherit.aes = FALSE, fill = "#b5b4ad") } +
+latency_range <- range(latency_long$latency)
+# One section of the panel: the participants' latencies, with the reference row if it has one.
+latency_section <- function(which, title) {
+  section <- filter(latency_long, correction == which)
+  rows <- sort(unique(section$row))
+  ggplot(section, aes(latency, row)) +
     geom_boxplot(aes(group = tracker), width = 0.55, outlier.shape = NA, fill = NA, color = INK_2,
                  linewidth = 0.35, orientation = "y") +
     geom_point(aes(color = tracker), position = position_jitter(height = 0.18, width = 0, seed = 3),
                size = 1.1, alpha = 0.6, stroke = 0) +
-    scale_color_manual(values = TRACKER_COLORS, guide = "none") +
-    scale_y_continuous(breaks = if (is.null(reference)) 1:2 else 0:2,
-                       labels = if (is.null(reference)) row_labels[2:3] else row_labels) +
+    scale_color_manual(values = c(TRACKER_COLORS, "GazeBase" = "#8a8984"), guide = "none") +
+    scale_y_continuous(breaks = rows, labels = row_labels[rows + 1]) +
     coord_cartesian(xlim = latency_range) +
     theme(panel.grid.minor = element_blank(), plot.title = element_text(face = "bold", size = 9)) +
     labs(title = title, x = "Median saccade latency (ms)", y = NULL)
 }
 correction_panel <- (latency_section("raw", "Uncorrected") + labs(x = NULL, tag = "C")) /
-  latency_section("corrected", "Minus camera delay", reference = bargary_bars) +
+  latency_section("corrected", "Minus camera delay") +
   plot_layout(heights = c(2, 3))
 
 wrap_elements(full = lag_panel + labs(tag = "A") + raw_vs_lag_panel + labs(tag = "B")) /
