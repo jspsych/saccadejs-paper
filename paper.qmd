@@ -901,7 +901,7 @@ We also assessed whether concentrating calibration in one region of the screen c
 
 ```{r}
 #| label: fig-eval-calibration
-#| fig-cap: "The effect of different calibration choices on accuracy. (A) Median error for different numbers of calibration points. One dot per participant; ticks mark the median. (B) The cost of fewer calibration points relative to the full grid of 144. Time estimates (top) are based on 2 seconds per point. Line is the median; darker band is the middle 50% of participants; lighter band is the middle 80%. (C) Accuracy when calibration points are in the same phase vs. different phase of the experiment. Each point is the median error on all target locations that are not in the 25-point calibration grid. (D) Error by location after calibrating on 25 points distributed across the screen or concentrated into the middle. Crosses are the calibration positions."
+#| fig-cap: "The effect of different calibration choices on accuracy. (A) Median error for different numbers of calibration points. One dot per participant; lines mark the median. (B) The cost of fewer calibration points relative to the full grid of 144. Time estimates (top) are based on 2 seconds per point. Line is the median; darker band is the middle 50% of participants; lighter band is the middle 80%. (C) Accuracy when calibration points are in the same phase vs. different phase of the experiment. Each point is the median error on all target locations that are not in the 25-point calibration grid. (D) Error by location after calibrating on 25 points distributed across the screen or concentrated into the middle. Crosses are the calibration positions."
 #| fig-width: 6.5
 #| fig-height: 5.8
 # Under each grid, an icon of where its points are on the screen.
@@ -1005,7 +1005,7 @@ We also measured features at the individual image level. One class of these feat
 
 ```{r}
 #| label: fig-eval-covariates
-#| fig-cap: !expr sprintf("How error correlates with observable characteristics of the recording at the group level. Each factor reported is measured for each subject and correlated with their overall median error. (A) Spearman correlations between changes in various observable characteristics of the images and the median error. Icons show the direction of change; for example, increases in the model's calibration weight are correlated with lower error, while increases in the standard deviation of interocular distance throughout the recording are correlated with higher error. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. (B) Each participant's median error by whether they wore glasses and whether their webcam was integrated or separate. Ticks mark each group's median.", nrow(eval_cov_tests))
+#| fig-cap: !expr sprintf("How error correlates with observable characteristics of the recording at the group level. Each factor reported is measured for each participant and correlated with their overall median error. (A) Spearman correlations between changes in various observable characteristics of the images and the median error. Icons show the direction of change; for example, increases in the model's calibration weight are correlated with lower error, while increases in the standard deviation of interocular distance throughout the recording are correlated with higher error. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. (B) Each participant's median error by whether they wore glasses and whether their webcam was integrated or separate. Ticks mark each group's median.", nrow(eval_cov_tests))
 #| fig-width: 6.5
 #| fig-height: 7.2
 # Strongest correlation at the top. Row numbers count up from the bottom, as the icon panel expects.
@@ -1090,7 +1090,7 @@ eval_within_plot <- ggplot(eval_within_points, aes(rho, row)) +
                      limits = c(0.5, nrow(eval_within_layout) + 0.5), expand = c(0, 0)) +
   scale_x_continuous(limits = c(-1, 1) * eval_within_limit) +
   theme(panel.grid.major.x = element_blank(), panel.grid.major.y = element_line(linewidth = 0.25)) +
-  labs(x = "Spearman's ρ with per-frame error, one dot per participant", y = NULL)
+  labs(x = "Spearman's ρ with per-frame error", y = NULL)
 
 icon_panel(names(eval_within_rows), eval_within_rows, n_rows = nrow(eval_within_layout)) +
   eval_within_plot + plot_layout(widths = c(1.2, 2))
@@ -2064,7 +2064,7 @@ The SaccadeJS model outputs a quality weight for each image. This model-derived 
 
 ```{r}
 #| label: fig-covariates
-#| fig-cap: !expr sprintf("Spearman correlations across all %d participants between each recording condition, averaged over the session, and median error, strongest first for SaccadeJS. A negative ρ means participants with more of the condition were tracked more accurately. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. The icons sketch a low (left) and a high (right) value of each condition. The left–right brightness difference and head roll are sizes, whichever eye is darker or whichever way the head tilts; head pitch runs from the head tipped down to tipped up. The model quality weight is SaccadeJS's per-frame weight, its median over the same frames for both trackers.", n_distinct(cov_tests_participants), nrow(cov_tests))
+#| fig-cap: !expr sprintf("How error correlates with observable characteristics of the recording at the group level. Each factor reported is measured for each participant and correlated with their overall median error using Spearman correlations. Icons show the direction of change; for example, increases in the model's calibration weight are correlated with lower error, while increases in the standard deviation of head roll throughout the recording are correlated with higher error. Filled dots are significant at *p* < .05, Holm-corrected over all %d tests. ", nrow(cov_tests))
 #| fig-width: 6.5
 #| fig-height: 4.7
 # Strongest correlation with SaccadeJS's error at the top.
@@ -2092,7 +2092,7 @@ icon_panel(names(cov_rows), cov_rows) + across_plot + plot_layout(widths = c(1.2
 
 ```{r}
 #| label: fig-within
-#| fig-cap: "Within participants: each participant's Spearman correlation between a predictor on each frame and that frame's error, on the same frames and calibration as the accuracy results. One dot per participant for each tracker; ticks mark the median participant, solid where the median differs from zero (Wilcoxon signed-rank, Holm-corrected over all tests) and dashed where it does not. Drift is measured from the participant's own calibration frames. The model's quality weight applies to SaccadeJS only. The icons sketch a low (left) and a high (right) value of each predictor; in the drift icons, the dashed outline is where the head was during calibration."
+#| fig-cap: "How changes within a session correlate with error. Each factor listed was measured for all frames within a subject and correlated with the error of those frames. Each dot is one participant. The vertical black lines mark the median. All correlations were statistically significant (Wilcoxon signed-rank, Holm-corrected over all tests). Drift is measured from the participant's calibration frames. The icons sketch a low (left) and a high (right) value of each predictor."
 #| fig-width: 6.5
 #| fig-height: 5.2
 # Rows grouped, each group under a heading, and within a group ordered by SaccadeJS's median ρ,
@@ -2141,7 +2141,7 @@ within_plot <- ggplot(within_points, aes(rho, row, color = tracker)) +
                      limits = within_limits, expand = c(0, 0)) +
   scale_x_continuous(limits = c(-1, 1) * within_limit) +
   theme(panel.grid.major.x = element_blank(), panel.grid.major.y = element_line(linewidth = 0.25)) +
-  labs(x = "Spearman's ρ with per-frame error, one dot per participant", y = NULL)
+  labs(x = "Spearman's ρ with per-frame error", y = NULL)
 
 icon_panel(names(within_rows), within_rows, n_rows = nrow(within_layout)) + within_plot +
   plot_layout(widths = c(1.2, 2))
@@ -2151,7 +2151,7 @@ No demographic features (age, ethnicity, sex) were statistically significant pre
 
 ```{r}
 #| label: fig-groups
-#| fig-cap: !expr sprintf("Each participant's median error by eyewear, camera, sex and ethnicity (ticks mark each group's median), and by age (lines are a smooth trend per tracker). Groups of fewer than five and missing answers are not shown.")
+#| fig-cap: !expr sprintf("Each participant's median error by eyewear, camera, sex and ethnicity (one dot per participant; lines mark each group's median), and by age (lines are a smooth trend per tracker). Groups of fewer than five participants are not shown.")
 #| fig-width: 6.5
 #| fig-height: 5
 # The same log error axis on every panel, so they can be compared.
@@ -2248,13 +2248,12 @@ camera_summary <- runtime |>
             recorded = median(camera_fps))
 
 # The cost of encoding one frame, wherever SaccadeJS could run it: on the GPU, by the GPU's
-# maker; on the CPU in the page itself (where the live tracker runs without WebGPU); and in one
-# CPU worker.
-ENCODE_PLACES <- c(paste("GPU:", GPU_MAKERS), "CPU, in the page", "CPU, one worker")
+# maker; and on the CPU, as one encode on one worker, measured on every machine that deferred its
+# encoding, whatever the size of its pool.
+ENCODE_PLACES <- c(paste("GPU:", GPU_MAKERS), "CPU")
 encode_times <- bind_rows(
   runtime |> filter(live_backend == "webgpu") |> transmute(place = paste("GPU:", gpu), ms = inline_ms, path),
-  runtime |> filter(live_backend == "wasm") |> transmute(place = "CPU, in the page", ms = inline_ms, path),
-  runtime |> filter(encoder == "deferred") |> transmute(place = "CPU, one worker", ms = worker_ms, path)
+  runtime |> filter(encoder == "deferred") |> transmute(place = "CPU", ms = worker_latency_ms, path)
 ) |>
   filter(is.finite(ms)) |>
   mutate(place = factor(place, ENCODE_PLACES))
@@ -2294,16 +2293,16 @@ encode_range <- function(places) {
 
 The major tradeoff of SaccadeJS relative to WebGazer is that it is a more computationally expensive algorithm to run. In our sample, we found that most of the devices used by participants were unable to deliver gaze predictions at the sampling rate of the webcam. As shown in @fig-hardware A, only `r f0(live_overall$keep_up)`% of machines kept up with their camera (delivering at least 90% of its frame rate); the median participant received `r f0(live_overall$live)` gaze samples per second from a camera running at `r f0(live_overall$camera)` frames per second.
 
-The SaccadeJS model is optimized to run on a GPU, which, when available, is accessed through the browser's WebGPU interface. In our sample, machines with Apple Silicon chips or an NVIDIA GPU took about `r encode_range(c("GPU: Apple Silicon", "GPU: NVIDIA"))` ms to encode one frame (medians), while encoding on the CPU took `r encode_range(c("CPU, in the page", "CPU, one worker"))` ms per frame (@fig-hardware C). Most machines with WebGPU capability were unable to keep up with the camera frame rate. These were generally chips with integrated graphics units from Intel and AMD. Encoding on these chips took a median of `r encode_range(c("GPU: AMD", "GPU: Intel"))` ms, which is just on the edge of being able to encode in real time with a 15 fps camera. 
+The SaccadeJS model is optimized to run on a GPU, which, when available, is accessed through the browser's WebGPU interface. In our sample, machines with Apple Silicon chips or an NVIDIA GPU took about `r encode_range(c("GPU: Apple Silicon", "GPU: NVIDIA"))` ms to encode one frame (medians), while encoding on the CPU took `r encode_range("CPU")` ms per frame (@fig-hardware B). Most machines with WebGPU capability were unable to keep up with the camera frame rate. These were generally chips with integrated graphics units from Intel and AMD. Encoding on these chips took a median of `r encode_range(c("GPU: AMD", "GPU: Intel"))` ms, which is just on the edge of being able to encode in real time with a 15 fps camera. 
 
 There are two reasons that we are optimistic that real-time performance will be possible on many more machines soon. First, we have explored quantized versions of the model that take up ~25% of the memory that the floating point version requires. These deliver nearly identical prediction quality, but we haven't collected data with them on a wide variety of machines. Second, the availability of dedicated GPU hardware is becoming much more common in entry-level laptops, so we expect these estimates to become obsolete quickly as more participants get access to the kinds of devices that supported real-time tracking. 
 
 
 ```{r}
 #| label: fig-hardware
-#| fig-cap: "What participants' machines could do. (A) The share of participants whose camera delivered (shaded) and whose machine tracked gaze live (line) at least a given number of frames per second. (B) The path each machine's encoder took, by the GPU maker WebGPU reported; colors as in the legend above C. (C) The time one frame took to encode: on the GPU, by its maker; on the CPU in the page, for machines without WebGPU; and in one background CPU worker, for deferred machines. One dot per machine, colored by its path; black ticks mark each row's median. Dashed lines mark one camera frame at 30 and 15 fps."
+#| fig-cap: "Hardware capabilities and SaccadeJS compute time. (A) We measured both webcam frames per second (solid gray bars), which represents the maximum throughput for eye tracking, and achieved live gaze performance (black line). (B) How long it took on each participant's machine to encode one frame. Dot color indicates GPU vs. CPU processing. Different GPU makers are shown as different rows to illustrate that many integrated GPUs for laptops (mostly Intel and AMD chips) are not quite fast enough to run inline."
 #| fig-width: 6.5
-#| fig-height: 4.2
+#| fig-height: 2.8
 # (A) How much of the sample reaches each rate, in 2 fps steps: each step's height is the share of
 # participants at or above its lower edge, for the camera's own rate (shaded) and for the live gaze
 # rate SaccadeJS achieved (line). Cameras nominally at 30 fps measure just under it, so the last
@@ -2315,30 +2314,19 @@ reach_plot <- ggplot(reach) +
   geom_rect(aes(xmin = rate, xmax = rate + 2, ymin = 0, ymax = 100 * camera), fill = "#dcdbd5") +
   geom_step(data = bind_rows(reach, mutate(slice_tail(reach, n = 1), rate = rate + 2)),
             aes(rate, 100 * live), direction = "hv", color = INK, linewidth = 0.7) +
-  annotate("text", x = 23, y = 62, label = "Camera", size = 3, color = INK_2) +
-  annotate("text", x = 25, y = 30, label = "Live gaze", size = 3, color = INK) +
+  annotate("text", x = 24, y = 68, label = "Camera", size = 3, color = INK_2) +
+  annotate("text", x = 25, y = 22, label = "Live gaze", size = 3, color = INK) +
   scale_x_continuous(breaks = seq(0, 30, by = 6)) +
   coord_cartesian(xlim = c(0, 30), ylim = c(0, 100), expand = FALSE) +
   labs(x = "Frames per second, at least", y = "Participants (%)")
 
-# (B) Each machine's path, by its GPU's maker; machines without usable WebGPU on their own row.
-path_rows <- runtime |>
-  mutate(row = if_else(path == "deferred: no WebGPU", "No WebGPU", as.character(gpu)),
-         row = factor(row, rev(c(GPU_MAKERS, "No WebGPU")))) |>
-  count(row, path) |>
-  mutate(share = n / sum(n), total = sum(n), .by = row)
-path_plot <- ggplot(path_rows, aes(100 * share, row, fill = path)) +
-  geom_col(width = 0.7) +
-  geom_text(data = distinct(path_rows, row, total), aes(x = 101, y = row, label = paste0("n = ", total)),
-            inherit.aes = FALSE, hjust = 0, size = 2.6, color = INK_2) +
-  scale_fill_manual(values = PATH_COLORS, guide = "none") +
-  scale_y_discrete(labels = capitalize_first) +
-  scale_x_continuous(breaks = c(0, 50, 100)) +
-  coord_cartesian(xlim = c(0, 118), expand = FALSE, clip = "off") +
-  theme(panel.grid.major.y = element_blank()) +
-  labs(x = "Machines (%)", y = NULL)
-
-# (C) The cost of one encode, wherever it ran, with each machine colored by the path it took.
+# (B) The cost of one encode, wherever it ran, with each machine colored by the path it took. At
+# the right of each GPU row, how many of its machines encoded inline; of the CPU row, how many
+# machines it has.
+row_counts <- encode_times |>
+  summarise(n = n(), inline = sum(path == "inline on GPU"), .by = place) |>
+  mutate(label = if_else(startsWith(as.character(place), "GPU"),
+                         sprintf("%d/%d inline", inline, n), sprintf("n = %d", n)))
 encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
   geom_vline(xintercept = 1000 / c(30, 15), linetype = "dashed", color = INK_2, linewidth = 0.3) +
   annotate("text", x = 1000 / c(30, 15), y = Inf, label = c("one frame at 30 fps", "at 15 fps"),
@@ -2348,44 +2336,24 @@ encode_cost_plot <- ggplot(encode_times, aes(ms, fct_rev(place))) +
   geom_errorbar(data = filter(encode_summary, place %in% ENCODE_PLACES),
                 aes(xmin = median, xmax = median, y = factor(place, rev(ENCODE_PLACES))),
                 inherit.aes = FALSE, width = 0.6, linewidth = 1.1, color = INK) +
+  geom_text(data = row_counts, aes(x = Inf, y = place, label = label), inherit.aes = FALSE,
+            hjust = -0.08, size = 2.6, color = INK_2) +
+  coord_cartesian(clip = "off") +
   scale_color_manual(values = PATH_COLORS, labels = capitalize_first, name = NULL) +
   guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
   # Room above the top row for the dashed lines' labels.
   scale_y_discrete(expand = expansion(add = c(0.6, 1.3))) +
   scale_x_log10(breaks = c(10, 20, 50, 100, 200, 500, 1000)) +
   theme(panel.grid.major.x = element_blank(), legend.position = "top",
-        legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(2, "pt")) +
+        legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(2, "pt"),
+        legend.text = element_text(size = 7), legend.key.spacing.x = unit(2, "pt"),
+        plot.margin = margin(5.5, 52, 5.5, 5.5)) +
   labs(x = "Time to encode one frame (ms, log scale)", y = NULL)
 
-# The paths' legend sits on C, the full-width panel; B's colors mean the same.
-(free(reach_plot) | path_plot) / encode_cost_plot +
-  plot_layout(heights = c(1, 1.6)) +
+# One row, B the wider: it carries the paths' legend and the labels at its right.
+(free(reach_plot) | encode_cost_plot) +
+  plot_layout(widths = c(1.3, 1.7)) +
   plot_annotation(tag_levels = "A")
-```
-
-@fig-frames shows each participant's median error against the number of frames scored at each fixation.
-
-```{r}
-#| label: fig-frames
-#| fig-cap: "Each participant's median error after one 25-point calibration, as in @fig-forward, against the median number of frames scored at each fixation (the 1,000 ms after the target settled). Both trackers score the same frames. Lines are a smooth trend per tracker."
-#| fig-width: 4.5
-#| fig-height: 3.2
-# Per participant: the median number of scored frames per fixation, on the same frames and
-# calibration as the accuracy results, and each tracker's median error. Both trackers score the
-# same frames, so the count is the same for both.
-frames_error <- fwd_frames |>
-  summarise(n_frames = n(), .by = c(session, tracker, station)) |>
-  summarise(n_frames = median(n_frames), .by = c(session, tracker)) |>
-  inner_join(summarise(fwd_frames, error = median(error), .by = c(session, tracker)),
-             by = c("session", "tracker"))
-
-ggplot(frames_error, aes(n_frames, error, color = tracker)) +
-  geom_point(size = 0.9, alpha = 0.45, stroke = 0) +
-  geom_smooth(method = "loess", formula = y ~ x, span = 1, se = FALSE, linewidth = 0.8) +
-  scale_color_manual(values = TRACKER_COLORS) +
-  scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50)) +
-  labs(x = "Frames scored per fixation (median)",
-       y = "Median error\n(% of diagonal, log scale)")
 ```
 
 # Conclusion

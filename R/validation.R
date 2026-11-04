@@ -93,9 +93,10 @@ read_trials <- function(path) {
 SESSION_KEYS <- c("participant_id", "embedding_dim", "hardware_concurrency", "timing_lag_ms",
                   # The encoder check at the start of the session (chooseEncoder in the
                   # experiment's experiment.js): the camera's frame rate, one inline encode's
-                  # cost and the limit it had to fit, and the path chosen.
+                  # cost and the limit it had to fit, and the path chosen; on the CPU, the
+                  # workers' cost per frame, the pool's size and one encode on one worker.
                   "video_width", "video_height", "camera_fps", "encoder_inline_ms", "encoder_inline_limit_ms", "encoder_mode",
-                  "encoder_worker_ms", "encoder_workers",
+                  "encoder_worker_ms", "encoder_workers", "encoder_worker_latency_ms",
                   # The GPU adapter the browser gave WebGPU, as it describes it.
                   "webgpu_vendor", "webgpu_architecture",
                   # SaccadeJS's own performance check: its live frame rate and backend.
@@ -575,8 +576,11 @@ replay_session <- function(path, session = NULL, grids = c(9L, 13L, 25L),
       inline_ms = as.numeric(info$encoder_inline_ms %||% NA_real_),
       inline_limit_ms = as.numeric(info$encoder_inline_limit_ms %||% NA_real_),
       encoder = info$encoder_mode %||% "inline",
+      # On the CPU: the effective time per frame across the pool of workers, which the
+      # per-station budget was built from, the pool's size, and one encode on one worker.
       worker_ms = as.numeric(info$encoder_worker_ms %||% NA_real_),
       workers = as.numeric(info$encoder_workers %||% NA_real_),
+      worker_latency_ms = as.numeric(info$encoder_worker_latency_ms %||% NA_real_),
       gpu_vendor = info$webgpu_vendor %||% NA_character_,
       gpu_architecture = info$webgpu_architecture %||% NA_character_,
       # SaccadeJS's live frame rate in its own performance check.
