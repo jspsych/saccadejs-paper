@@ -1,5 +1,5 @@
 ---
-title: "SaccadeJS: Real-time eye tracking in a web browser"
+title: "SaccadeJS: Webcam eye tracking for behavioral experiments in a web browser"
 author:
   - name: Josh de Leeuw
     affiliations:
@@ -571,6 +571,18 @@ eval_by_participant <- eval_forward |>
             .by = participant)
 eval_share_within <- function(limit) f0(100 * mean(eval_by_participant$error < limit))
 eval_quantile <- function(q) f1(quantile(eval_by_participant$error, q, names = FALSE))
+# A baseline for the network: ridge regression from the raw pixels of the same eye crops, fit and
+# scored like the main result, at the penalty with the lowest median error over participants (see
+# reference/pixel_ridge.py; the crops are not in the evaluation dataset, so the fits are stored).
+pixel_ridge <- read_csv("reference/pixel_ridge_results.csv", show_col_types = FALSE)
+pixel_lambda <- pixel_ridge |>
+  summarise(error = median(median_error), .by = lambda) |>
+  slice_min(error, with_ties = FALSE) |>
+  pull(lambda)
+pixel_vs_model <- pixel_ridge |>
+  filter(lambda == pixel_lambda) |>
+  inner_join(eval_by_participant, by = "participant")
+stopifnot(nrow(pixel_vs_model) == nrow(eval_by_participant))
 # Horizontal against vertical error, paired within participant.
 eval_xy <- eval_by_participant |>
   summarise(more_vertical = sum(dy > dx), n = n(),
@@ -860,7 +872,7 @@ We used the held-out data from `r n_eval` participants to measure model performa
 
 ## Overall accuracy
 
-We began by assessing model accuracy using a typical calibration routine. We calibrated the model with 25 points, arranged in a 5 × 5 grid (@fig-eval-accuracy B), from the first phase of the test data, and then measured prediction error on all 144 points from the second phase. The median error was just above 5% of the screen diagonal, `r dist_text(eval_by_participant$error)` across participants, and `r eval_share_within(10)`% of participants had a median error below 10%. There was a long tail of poor performance (@fig-eval-accuracy A): the worst 10% of participants had median errors above `r eval_quantile(0.9)`%. Performance was worst along the sides and bottom edge, and best in the top center region of the screen.
+We began by assessing model accuracy using a typical calibration routine. We calibrated the model with 25 points, arranged in a 5 × 5 grid (@fig-eval-accuracy B), from the first phase of the test data, and then measured prediction error on all 144 points from the second phase. The median error was just above 5% of the screen diagonal, `r dist_text(eval_by_participant$error)` across participants^[To rule out that the larger image crops were responsible for the improved tracking, we fit a ridge regression  directly to the pixels of the same eye crops (as WebGazer does). This had a median error of `r dist_text(pixel_vs_model$median_error)`, against `r f2(median(eval_by_participant$error))`% for SaccadeJS], and `r eval_share_within(10)`% of participants had a median error below 10%. There was a long tail of poor performance (@fig-eval-accuracy A): the worst 10% of participants had median errors above `r eval_quantile(0.9)`%. Performance was worst along the sides and bottom edge, and best in the top center region of the screen.
 
 ```{r}
 #| label: fig-eval-accuracy
