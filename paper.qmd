@@ -1844,7 +1844,7 @@ As shown in @fig-latency B, without correction there is a positive relationship 
 
 ```{r}
 #| label: fig-latency
-#| fig-cap: "Camera delay and saccade latency. (A) Each participant's camera delay, measured by the SaccadeJS time-sync plugin, shaded by whether the plugin judged the measurement reliable; flagged participants are left out of B and C. (B) Each participant's median saccade latency from SaccadeJS before correction, against their camera delay; the dashed line has a slope of 1, through the mean. (C) Each participant's median latency before and after subtracting their camera delay; boxes span the middle half of participants. Gray: each participant's median latency in GazeBase's random-saccade task [@griffith2021], recorded in the laboratory at 1,000 Hz and timed the same way."
+#| fig-cap: "Timing synchronization and correction. (A) We measured each participant's screen-to-camera delay using the time-sync plugin. When the measurements are unreliable, we dropped them from subequent analyses. (B) Each participant's median saccade latency, measured before correction, and measured camera delay. The dashed line has a slope of 1. If saccade latency varied only due to camera latency, all points would be on this line. (C) All participant's saccade latencies before and after subtracting their camera latency. The boxes span the middle half of participants, with the solid line at the median. The bottom row in gray shows data from GazeBase's random-saccade task [@griffith2021], recorded in the laboratory using a 1,000 Hz eye tracker."
 #| fig-width: 6.5
 #| fig-height: 5.6
 # (A) The camera delay.
@@ -1884,7 +1884,7 @@ latency_section <- function(which, title) {
   section <- filter(latency_long, correction == which)
   rows <- sort(unique(section$row))
   ggplot(section, aes(latency, row)) +
-    geom_boxplot(aes(group = tracker), width = 0.55, outlier.shape = NA, fill = NA, color = INK_2,
+    geom_boxplot(aes(group = tracker), width = 0.55, coef = 0, outlier.shape = NA, fill = NA, color = INK_2,
                  linewidth = 0.35, orientation = "y") +
     geom_point(aes(color = tracker), position = position_jitter(height = 0.18, width = 0, seed = 3),
                size = 1.1, alpha = 0.6, stroke = 0) +
