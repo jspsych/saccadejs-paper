@@ -1737,7 +1737,7 @@ Given the small gains in increasing the number of calibration points and the lar
 
 ```{r}
 #| label: fig-calibration
-#| fig-cap: "How calibration choices affect error. All: Each dot is the median error across all predicted points for one subject. The horizontal black bar is the median of the group. Left: Calibration error with 9, 13, and 25 calibration points. Middle: After calibrating with a 25-point grid in the first block, we measure accuracy in the same block, one block later, and two blocks later. Accuracy gets worse over time. Right: Using a 9-point calibration every block prevents calibration drift. The gray horizontal lines are the medians from the middle panel to facilitate comparison. Block one accuracy is slightly worse than the one-time 25-point calibration because of the increased number of calibration points, but is slightly better in blocks 2 and 3."
+#| fig-cap: "How calibration choices affect error. All: Each dot is the median error across all predicted points for one subject. The horizontal black bar is the median of the group. Left: Calibration error with 9, 13, and 25 calibration points; the icons show where the points are on the screen. Middle: After calibrating with a 25-point grid in the first block, we measure accuracy in the same block, one block later, and two blocks later. Accuracy gets worse over time. Right: Using a 9-point calibration every block prevents calibration drift. The gray horizontal lines are the medians from the middle panel to facilitate comparison. Block one accuracy is slightly worse than the one-time 25-point calibration because of the increased number of calibration points, but is slightly better in blocks 2 and 3."
 #| fig-width: 6.5
 #| fig-height: 3.8
 # Approximate: the median across participants of the elapsed time from the end of calibration,
@@ -1748,17 +1748,51 @@ lag_labels <- sprintf("%s\n(~%.0f s)", c("Same\nblock", "1 block\nlater", "2 blo
 # at each group's median.
 DODGE <- position_dodge(width = 0.75)
 JITTER_DODGE <- position_jitterdodge(jitter.width = 0.25, dodge.width = 0.75, seed = 1)
-size_and_time_data <- bind_rows(
-  by_grid |> mutate(panel = "Calibration points", x = factor(grid)),
-  by_lag |> mutate(panel = "Time since 25 point calibration", x = factor(lag_labels[lag + 1], lag_labels))
-)
-size_and_time <- ggplot(size_and_time_data, aes(x, error, color = tracker, group = tracker)) +
-  geom_point(position = JITTER_DODGE, size = 0.4, alpha = 0.5) +
-  stat_summary(fun = median, fun.min = median, fun.max = median, geom = "errorbar",
-               position = DODGE, width = 0.6, color = INK, linewidth = 0.5) +
-  scale_color_manual(values = TRACKER_COLORS) +
-  facet_wrap(~panel, scales = "free_x") +
-  labs(x = NULL, y = "Each participant's median error\n(% of diagonal, log scale)")
+grid_data <- by_grid |> mutate(x = factor(grid))
+time_data <- by_lag |> mutate(x = factor(lag_labels[lag + 1], lag_labels))
+# Each panel's x labels go in a strip below it (icons on the left, text elsewhere), so that all three
+# panels come out the same height and share one y axis. The panel's x range is the strip's, the
+# discrete axis's 0.6 beyond the first and last positions, whatever the jitter's spread.
+no_x_axis <- function(n) {
+  list(coord_cartesian(xlim = c(1, n)),
+       theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+             plot.margin = margin(5.5, 5.5, 0, 5.5)))
+}
+label_strip <- function(labels) {
+  ggplot() +
+    annotate("text", x = seq_along(labels), y = 1, label = labels, vjust = 1, lineheight = 0.9,
+             size = 0.8 * 9 / .pt, color = "grey30") +
+    coord_cartesian(xlim = c(0.4, length(labels) + 0.6), ylim = c(0, 1), expand = FALSE) +
+    theme_void() +
+    theme(plot.margin = margin(2, 5.5, 5.5, 5.5))
+}
+dots_and_medians <- function(data, panel) {
+  ggplot(mutate(data, panel = panel), aes(x, error, color = tracker, group = tracker)) +
+    geom_point(position = JITTER_DODGE, size = 0.4, alpha = 0.5) +
+    stat_summary(fun = median, fun.min = median, fun.max = median, geom = "errorbar",
+                 position = DODGE, width = 0.6, color = INK, linewidth = 0.5) +
+    scale_color_manual(values = TRACKER_COLORS) +
+    facet_wrap(~ panel) +
+    labs(x = NULL, y = NULL) +
+    no_x_axis(nlevels(data$x))
+}
+# Under each grid size, an icon of where its points are on the screen. The grids nest: 9 points at
+# 5, 50 and 95% of the width and height; 13 adds the four at 27.5 and 72.5%; 25 fills in the 5 x 5.
+VALIDATION_GRIDS <- local({
+  nine <- expand.grid(x = c(5, 50, 95), y = c(5, 50, 95))
+  four <- expand.grid(x = c(27.5, 72.5), y = c(27.5, 72.5))
+  list(`9` = as.matrix(nine), `13` = as.matrix(rbind(nine, four)),
+       `25` = as.matrix(expand.grid(x = c(5, 27.5, 50, 72.5, 95), y = c(5, 27.5, 50, 72.5, 95))))
+})
+stopifnot(identical(names(VALIDATION_GRIDS), levels(grid_data$x)))
+grid_size <- dots_and_medians(grid_data, "Calibration points") +
+  labs(y = "Each participant's median error\n(% of diagonal, log scale)")
+grid_icons <- grid_icon_strip(unname(VALIDATION_GRIDS), labels = names(VALIDATION_GRIDS)) +
+  labs(x = NULL) +
+  theme(plot.margin = margin(2, 5.5, 5.5, 5.5))
+time_since <- dots_and_medians(time_data, "Time since 25 point calibration") +
+  # It shares the left panel's y axis, so its labels are left off.
+  theme(axis.text.y = element_blank())
 
 # Recalibrating: for each block, one dot per participant and tracker with a fresh 9-point
 # calibration on that block's own grid, and a tick at its median. A gray tick marks the median
@@ -1782,17 +1816,25 @@ recalibrating <- ggplot(recal_data, aes(block, error, color = tracker, group = t
   facet_wrap(~ "Recalibrating on 9 points each block") +
   # It shares the left panels' y axis, so its labels are left off.
   theme(axis.text.y = element_blank()) +
-  labs(x = NULL, y = NULL)
+  labs(x = NULL, y = NULL) +
+  no_x_axis(nlevels(recal_data$block))
 
-# Both legends together, along the top; one y range for all three panels; horizontal gridlines only.
-error_min <- min(size_and_time_data$error, recal_data$error)
-error_max <- max(size_and_time_data$error, recal_data$error)
-(size_and_time + recalibrating + plot_layout(widths = c(2, 1.2), guides = "collect")) &
+# Both legends together, along the top; one y range for all three panels; horizontal gridlines
+# only. These go on each panel rather than on the whole layout, which would also put the log
+# scale on the icons.
+error_min <- min(grid_data$error, time_data$error, recal_data$error)
+error_max <- max(grid_data$error, time_data$error, recal_data$error)
+shared <- list(
   scale_y_log10(limits = c(error_min, error_max), breaks = c(1, 2, 5, 10, 20, 50),
-                labels = \(x) paste0(x, "%")) &
-  guides(color = guide_legend(override.aes = list(size = 1.6, alpha = 1))) &
+                labels = \(x) paste0(x, "%")),
+  guides(color = guide_legend(override.aes = list(size = 1.6, alpha = 1))),
   theme(strip.text = element_text(face = "bold", hjust = 0), legend.position = "top",
         panel.grid.major.x = element_blank())
+)
+((grid_size + shared) + (time_since + shared) + (recalibrating + shared) +
+   grid_icons + label_strip(levels(time_data$x)) + label_strip(levels(recal_data$block)) +
+   plot_layout(ncol = 3, widths = c(1, 1, 1.2), heights = c(1, 0.16), guides = "collect")) &
+  theme(legend.position = "top")
 ```
 
 ### What is the temporal accuracy of SaccadeJS? {#sec-latency}
