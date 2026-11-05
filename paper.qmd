@@ -1124,13 +1124,65 @@ As we show in @sec-hardware, not all machines are fast enough to run these predi
 
 ## Timing Correction {#sec-timing}
 
-One of the limitations of webcam eye tracking compared to laboratory equipment is temporal accuracy and sampling rate. The sampling rate of laboratory equipment can reach 500–2,000 Hz, while webcams typically sample only 10–30 times per second. This is an unavoidable drawback of webcam-based eye tracking. Temporal accuracy is also usually worse with webcam systems. Browsers timestamp when a display change is drawn and when a camera frame is captured, on the same clock, but not the physical delays in between: the screen takes time to show a change, and the camera takes time to expose, process and stamp a frame. Their sum is unknown and varies across machines.
+One of the limitations of webcam eye tracking compared to laboratory equipment is temporal accuracy and sampling rate. The sampling rate of laboratory equipment is often 100-1,000 Hz, while webcams typically sample around 10–30 Hz. This is an unavoidable drawback of webcam-based eye tracking. Temporal accuracy is also usually worse with webcam systems. Browsers timestamp when a display change is drawn and when a camera frame is captured, on the same clock, but not the physical delays in between: the screen takes time to show a change, and the camera takes time to expose, process and stamp a frame. Their sum is unknown, not reported directly by the browser, and varies across machines.
 
-To solve this problem, we developed a timing calibration routine that measures this delay for each participant. For 15 seconds, the display switches between black and white at random intervals of 500–1,000 ms, and the participant's face and room reflect the change into the camera image. For each candidate delay from 0 to 600 ms, the algorithm checks whether the frame-to-frame change in camera brightness just after each display change matches its direction, and it selects the delay at which all of them line up. (Correlating brightness with the black-and-white sequence directly does not work, because webcam auto-exposure quickly compensates for changes in overall brightness.) The routine flags the estimate as unreliable when the brightness changes are faint, do not narrow the delay to less than one frame, or disagree between the two halves of the recording. The result is subtracted from each camera frame's timestamp.
+To solve this problem, we developed a timing calibration routine that measures this delay for each participant. For 15 seconds, the display switches between black and white at random intervals of 500–1,000 ms, and the participant's face and room reflect the change. For each candidate delay from 0 to 600 ms, we check whether the frame-to-frame change in camera brightness just after each display change matches its direction, and it selects the delay at which all of them best line up. (Correlating brightness with the black-and-white sequence directly does not work, because webcam auto-exposure quickly compensates for changes in overall brightness.) The routine flags the estimate as unreliable when the brightness changes are faint, do not narrow the delay to less than one frame, or disagree between the two halves of the recording. The result is subtracted from each camera frame's timestamp.
 
-To validate this approach, we used a custom Arduino-based timing device that included a phototransistor to detect screen changes and an LED in view of the webcam that turned on within 1 ms of the screen brightness changing. We first measured the camera lag using the time sync algorithm, and then confirmed that applying the measured value to the video of the LED resulted in alignment between the display clock and the LED turning on. [Do we need to report some data here??].
+```{r}
+#| label: time-sync-rig
+# The bench test of the time-sync estimate: 25 one-minute recordings on two laptops with a person
+# in front of the camera, each scored as four back-to-back 15 s estimates by the shipped estimator,
+# against the camera lag measured from an LED the rig lit a known delay after each screen change
+# (reference/time_sync_rig.csv; recorded with the eye-tracking repo's web/rig panel). An estimate
+# counts as reliable under the current verdict, which requires a peak of at least 0.6.
+rig_windows <- read_csv("reference/time_sync_rig.csv", show_col_types = FALSE) |>
+  mutate(reliable = verdict == "OK" & peak_d >= 0.6, corrected = led_lag_ms - estimate_ms)
+rig_recordings <- distinct(rig_windows, laptop, recording, led_lag_ms, frame_period_ms)
+rig_reliable <- filter(rig_windows, reliable)
+REFRESH_MS <- 1000 / 60
+# What one camera frame can resolve: half a frame plus one display refresh, either side of zero.
+rig_inside <- with(rig_reliable, sum(abs(corrected) <= REFRESH_MS + frame_period_ms / 2))
+```
 
-In @sec-latency, we report further evidence that this works by measuring the timing of saccades with human participants.
+To validate this approach, we built a measurement device using an RP2040 microcontroller, a phototransistor contacting the screen and an LED in view of the webcam. Each time the phototransistor detected a brightness change, the device lit the LED after a known delay between 100 and 140 ms, varied at random so the change in LED brightness could not be confused with the screen's change. This gave us a known delay between the screen's actual change in brightness and a moment in the video. If the browser's camera was perfectly synchronized to the display change, the delay would be 0. We tested two different laptops (a MacBook and a Lenovo ThinkPad), using Google Chrome in each, in bright and dim room light. Because the camera's frame rate affects the estimate's precision, we ran the test with both 15 and 30 frames per second as our requested sampling rate. 
+
+We made `r nrow(rig_recordings)` one-minute recordings and scored each 15 s segment as the time synchronization plugin does, giving `r nrow(rig_windows)` estimates. Uncorrected, the delay in the LED change was `r f0(min(rig_recordings$led_lag_ms))`–`r f0(max(rig_recordings$led_lag_ms))` ms (@fig-time-sync-rig A). When we applied the correction factor, the gap was within `r f0(max(abs(rig_reliable$corrected)))` ms of the true value (mean `r f1(mean(rig_reliable$corrected))` ms, SD `r f1(sd(rig_reliable$corrected))`). 
+This is within the limit set by two sources of uncertainty that the software cannot control. A camera frame records light over a span of time rather than at an instant, which limits precision to half a frame duration, and the browser cannot observe exactly when the display shows a change, which is up to one display refresh (typically 1/60 s). All corrected values fell within half a frame plus one display refresh (@fig-time-sync-rig B). In @sec-latency, we report further evidence that this works by measuring the timing of saccades with human participants.
+
+```{r}
+#| label: fig-time-sync-rig
+#| fig-cap: "Validation of timing correction strategy. (A) When the LED appears in the camera's timestamps, relative to when it actually lit. (B) The corrected values by camera frame rate. The solid gray region is the best-case performance given the uncertainties of +/- one display refresh and half a frame's duration."
+#| fig-width: 6.5
+#| fig-height: 2.8
+LAPTOP_COLORS <- c("MacBook" = "#8a4fbf", "ThinkPad" = "#0a9a84")
+TIMING_ROWS <- c("Uncorrected", "Corrected")
+# (A) Uncorrected and corrected LED timing.
+rig_rows <- bind_rows(transmute(rig_recordings, laptop, row = TIMING_ROWS[1], ms = led_lag_ms),
+                      transmute(rig_reliable, laptop, row = TIMING_ROWS[2], ms = corrected)) |>
+  mutate(row = factor(row, rev(TIMING_ROWS)))
+rig_a <- ggplot(rig_rows, aes(ms, row, color = laptop)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = INK_2, linewidth = 0.4) +
+  geom_point(size = 1.4, alpha = 0.8, position = position_jitter(width = 0, height = 0.18, seed = 1)) +
+  scale_color_manual(values = LAPTOP_COLORS) +
+  scale_x_continuous(breaks = seq(-40, 120, 20)) +
+  labs(x = "Measured LED delay (ms)", y = NULL)
+# (B) Corrected timing by frame rate, inside the resolution of one frame.
+RIG_FPS <- c(15, 23, 30)
+rig_region <- tibble(x = c(25, 75), half = REFRESH_MS + x / 2)
+rig_b <- ggplot(rig_reliable, aes(frame_period_ms, corrected, color = laptop)) +
+  geom_ribbon(data = rig_region, aes(x = x, ymin = -half, ymax = half), inherit.aes = FALSE,
+              fill = "grey92") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = INK_2, linewidth = 0.4) +
+  geom_point(size = 1.4, alpha = 0.8, position = position_jitter(width = 1, height = 0, seed = 1)) +
+  scale_color_manual(values = LAPTOP_COLORS) +
+  scale_x_continuous(breaks = 1000 / RIG_FPS, labels = RIG_FPS) +
+  coord_cartesian(xlim = c(25, 75), ylim = c(-55, 55), expand = FALSE) +
+  labs(x = "Camera frame rate (fps)", y = "Corrected timing (ms)")
+(rig_a + rig_b + plot_layout(widths = c(1.5, 1), guides = "collect") +
+   plot_annotation(tag_levels = "A")) & theme(legend.position = "top")
+```
+
+
 
 ## Integration with jsPsych
 
