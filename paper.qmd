@@ -25,7 +25,7 @@ affiliations:
     department: Cognitive Science Department
 format: preprint-typst
 authornote: |
-  We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project. We used LLMs to assist in the preparation of the manuscript; LLMs provided implementation assistance for data analyses, suggested edits for prose, which we sometimes used as suggested, and helped identify inconsistencies between how we described the software in prose and the actual code.
+  We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project. We used LLMs to assist in the preparation of the manuscript; LLMs provided implementation assistance for data analyses, suggested edits for text, which we often used as suggested, helped identify inconsistencies between how we described the software in prose and the actual code, and suggested additional analysis directions.
 bibliography: references.bib
 bibliographystyle: apa
 abstract: |
@@ -872,7 +872,7 @@ We used the held-out data from `r n_eval` participants to measure model performa
 
 ## Overall accuracy
 
-We began by assessing model accuracy using a typical calibration routine. We calibrated the model with 25 points, arranged in a 5 × 5 grid (@fig-eval-accuracy B), from the first phase of the test data, and then measured prediction error on all 144 points from the second phase. The median error was just above 5% of the screen diagonal, `r dist_text(eval_by_participant$error)` across participants^[To rule out that the larger image crops were responsible for the improved tracking, we fit a ridge regression  directly to the pixels of the same eye crops (as WebGazer does). This had a median error of `r dist_text(pixel_vs_model$median_error)`, against `r f2(median(eval_by_participant$error))`% for SaccadeJS], and `r eval_share_within(10)`% of participants had a median error below 10%. There was a long tail of poor performance (@fig-eval-accuracy A): the worst 10% of participants had median errors above `r eval_quantile(0.9)`%. Performance was worst along the sides and bottom edge, and best in the top center region of the screen.
+We began by assessing model accuracy using a typical calibration routine. We calibrated the model with 25 points, arranged in a 5 × 5 grid (@fig-eval-accuracy B), from the first phase of the test data, and then measured prediction error on all 144 points from the second phase. The median error was just above 5% of the screen diagonal, `r dist_text(eval_by_participant$error)` across participants^[To rule out that the larger image crops were responsible for the improved tracking, we fit the same regression to the raw pixels of the crops instead of their embeddings, as WebGazer does with smaller eye patches (@sec-model). This had a median error of `r dist_text(pixel_vs_model$median_error)`, against `r f2(median(eval_by_participant$error))`% for SaccadeJS.], and `r eval_share_within(10)`% of participants had a median error below 10%. There was a long tail of poor performance (@fig-eval-accuracy A): the worst 10% of participants had median errors above `r eval_quantile(0.9)`%. Performance was worst along the sides and bottom edge, and best in the top center region of the screen.
 
 ```{r}
 #| label: fig-eval-accuracy
