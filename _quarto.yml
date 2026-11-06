@@ -4,6 +4,9 @@ project:
   render:
     - paper.qmd
 
+filters:
+  - filters/table-notes.lua
+
 execute:
   echo: false
   warning: false
