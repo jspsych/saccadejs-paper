@@ -158,16 +158,9 @@ ds_median <- function(column, which) median(dataset[[column]][dataset$split == w
 # The percentage of one split's participants for whom `test` (a function of their rows) holds,
 # among those it can be evaluated for.
 ds_pct <- function(which, test) f0(100 * mean(test(filter(dataset, split == which)), na.rm = TRUE))
-# Cameras at about 30 frames per second: above 26, the gap between the 25 and 30 clusters.
-FULL_RATE <- 26
 ds_trials_per_person <- function(which) unique(dataset$n_trials[dataset$split == which])
 stopifnot(length(ds_trials_per_person("training")) == 1,
           length(ds_trials_per_person("held-out")) == 1)
-# The three most common browser windows, once fullscreen.
-ds_windows <- dataset |> count(screen_width, screen_height, sort = TRUE) |> head(3) |>
-  mutate(label = paste0(screen_width, " × ", screen_height, " (", n, " participants)"))
-ds_windows_text <- paste0(paste(ds_windows$label[1:2], collapse = ", "), ", or ",
-                          ds_windows$label[3])
 # The held-out participants are the evaluation dataset's: the two summaries must agree.
 eval_ids <- read_csv(file.path(eval_data_dir(), "participants.csv"), show_col_types = FALSE)$participant
 stopifnot(setequal(eval_ids, dataset$participant[dataset$split == "held-out"]))
@@ -585,11 +578,6 @@ pixel_vs_model <- pixel_ridge |>
   filter(lambda == pixel_lambda) |>
   inner_join(eval_by_participant, by = "participant")
 stopifnot(nrow(pixel_vs_model) == nrow(eval_by_participant))
-# Horizontal against vertical error, paired within participant.
-eval_xy <- eval_by_participant |>
-  summarise(more_vertical = sum(dy > dx), n = n(),
-            p = wilcox.test(dy, dx, paired = TRUE, exact = FALSE)$p.value,
-            dx = median(dx), dy = median(dy))
 
 # Calibration size: each participant's error with each of the first phase's grids, scored on the
 # second phase; paired comparisons use participants with every grid.
@@ -599,23 +587,12 @@ eval_by_grid <- eval_grids |>
 eval_all_grids <- eval_by_grid |>
   pivot_wider(names_from = grid, values_from = error, names_prefix = "g") |>
   drop_na()
-eval_grid_dist <- function(grid) {
-  dist_text(filter(eval_by_grid, grid == as.character(!!grid),
-                   participant %in% eval_all_grids$participant)$error)
-}
-eval_grid_better <- function(a, b) sum(eval_all_grids[[paste0("g", b)]] < eval_all_grids[[paste0("g", a)]])
 eval_grid_median <- function(grid) f2(median(eval_all_grids[[paste0("g", grid)]]))
 # The inner 5 x 5 grid against the spread one, over the whole screen: how many participants it
 # raised error for, and a Wilcoxon signed-rank test.
 eval_inner_vs_spread <- list(
   higher = sum(eval_all_grids$`g25 inner` > eval_all_grids$g25), n = nrow(eval_all_grids),
   p = wilcox.test(eval_all_grids$`g25 inner`, eval_all_grids$g25, paired = TRUE, exact = FALSE)$p.value)
-# The cost-benefit of calibration points: each participant's drop in error from one grid to a
-# larger one, divided by the points added; the median participant, in percentage points per point.
-eval_grid_gain <- function(a, b) {
-  drop <- eval_all_grids[[paste0("g", a)]] - eval_all_grids[[paste0("g", b)]]
-  formatC(median(drop) / (b - a), digits = 2, format = "fg")
-}
 # What fewer points cost: how much higher each participant's error is with each grid in the
 # figure than with all 144 points, in percent of the screen diagonal; the spread across
 # participants at each grid.
@@ -658,8 +635,6 @@ eval_position <- eval_forward |>
   summarise(error = median(error), .by = c(participant, tx, ty)) |>
   mutate(relative = error / median(error), .by = participant) |>
   summarise(relative = median(relative), .by = c(tx, ty))
-eval_bottom_row <- f2(median(filter(eval_position, ty == max(LATTICE_Y))$relative))
-eval_worst_position <- f2(max(eval_position$relative))
 
 # Time since calibration, apart from the phase: each phase's own 25-point grid, and the first
 # phase's grid on the second phase, all scored on the positions outside the grid. One median
@@ -686,40 +661,9 @@ eval_phase_compare <- function(a, b) {
 # Drift: the second phase's frames, calibrated minutes earlier (the first phase's grid) against
 # right before (its own grid). The same frames, so only the time since calibration differs.
 eval_drift <- eval_phase_compare("phase 2_2", "phase 1_2")
-# The same calibration on its own phase and on the next: drift and any change between phases.
-eval_drift_same_cal <- eval_phase_compare("phase 1_1", "phase 1_2")
-# Each phase calibrated on its own grid: whether the second phase is harder to track at all.
-eval_phase_own <- eval_phase_compare("phase 1_1", "phase 2_2")
 # Recalibrating: how much lower the second phase's median error is with its own grid than with the
 # first phase's, in percent.
 eval_recal_drop <- f0(100 * (1 - median(eval_by_phase$`phase 2_2`) / median(eval_by_phase$`phase 1_2`)))
-
-# Blinks and the model's calibration weight, on the main result's frames.
-eval_blink <- eval_forward |>
-  filter(!is.na(blink)) |>
-  summarise(error = median(error), .by = c(participant, blink)) |>
-  pivot_wider(names_from = blink, values_from = error, names_prefix = "blink_") |>
-  drop_na()
-eval_blink_share <- f1(100 * mean(eval_forward$blink, na.rm = TRUE))
-eval_weight_fifths <- eval_forward |>
-  mutate(fifth = ntile(weight, 5)) |>
-  summarise(error = median(error), .by = c(participant, fifth)) |>
-  summarise(error = median(error), .by = fifth) |>
-  arrange(fifth)
-# The two variations on the 25-point fit, paired against the standard one.
-eval_fit <- eval_grids |>
-  filter(grid == as.character(STANDARD_GRID)) |>
-  select(participant, fit, error) |>
-  pivot_wider(names_from = fit, values_from = error) |>
-  drop_na()
-eval_fit_change <- function(variant) {
-  d <- eval_fit[[variant]] - eval_fit$weighted
-  list(mean = f2(abs(mean(d))), direction = if (mean(d) > 0) "raised" else "lowered",
-       better = sum(d < 0), n = length(d),
-       p = wilcox.test(eval_fit[[variant]], eval_fit$weighted, paired = TRUE, exact = FALSE)$p.value)
-}
-eval_unweighted <- eval_fit_change("unweighted")
-eval_no_blinks <- eval_fit_change("no blinks")
 
 # Who is tracked well: each participant's conditions over the main result's frames, against their
 # median error. Head position and pose come from MediaPipe's landmarks: the head's
@@ -1142,8 +1086,6 @@ rig_windows <- read_csv("reference/time_sync_rig.csv", show_col_types = FALSE) |
 rig_recordings <- distinct(rig_windows, laptop, recording, led_lag_ms, frame_period_ms)
 rig_reliable <- filter(rig_windows, reliable)
 REFRESH_MS <- 1000 / 60
-# What one camera frame can resolve: half a frame plus one display refresh, either side of zero.
-rig_inside <- with(rig_reliable, sum(abs(corrected) <= REFRESH_MS + frame_period_ms / 2))
 ```
 
 To validate this approach, we built a measurement device using an RP2040 microcontroller, a phototransistor contacting the screen and an LED in view of the webcam. Each time the phototransistor detected a brightness change, the device lit the LED after a known delay between 100 and 140 ms, varied at random so the change in LED brightness could not be confused with the screen's change. This gave us a known delay between the screen's actual change in brightness and a moment in the video. If the browser's camera was perfectly synchronized to the display change, the delay would be 0. We tested two different laptops (a MacBook and a Lenovo ThinkPad), using Google Chrome in each, in bright and dim room light. Because the camera's frame rate affects the estimate's precision, we ran the test with both 15 and 30 frames per second as our requested sampling rate. 
@@ -1259,7 +1201,6 @@ Throughout the entire analysis, we measure spatial distances in percentage of th
 #| cache.extra: !expr c(tools::md5sum(c("R/validation.R", "R/measures.R")), ZENODO_MD5, MIN_ATTENTION)
 # The frames scored, in ms after the target's 600 ms settle ends: the whole 1000 ms capture
 # window. The settle gives the eyes time to arrive, so every recorded frame after it is fixation.
-SETTLE_MS <- 600
 FIXATION_WINDOW <- c(0, 1000)
 
 # Every result below comes from one replay of each session through both trackers (see
@@ -1486,7 +1427,6 @@ prec_session <- prec_wide |>
   slice(ceiling(n() / 2)) |>
   pull(session)
 cloud <- prec_frames |> filter(session == prec_session)
-cloud_limit <- quantile(c(abs(cloud$dev_x), abs(cloud$dev_y)), 0.99, names = FALSE)
 cloud_sd <- cloud |> summarise(sd = sqrt(mean(deviation^2)), .by = tracker)
 sd_circles <- cloud_sd |>
   reframe(angle = seq(0, 2 * pi, length.out = 100), x = sd * cos(angle), y = sd * sin(angle),
@@ -1555,7 +1495,6 @@ picked <- squares |>
   slice(pmax(1, ceiling(RANKS * n()))) |>
   mutate(rank = factor(names(RANKS), names(RANKS))) |>
   ungroup()
-sq_median <- function(tr) value_of(picked, regions, tracker == tr, rank == "median")
 # The share of participants' screens within 0.03 of a width-to-height ratio.
 aspect_share <- function(ratio) {
   screens |> filter(session %in% attentive) |> summarise(share = mean(abs(aspect - ratio) < 0.03)) |> pull(share)
@@ -1632,18 +1571,6 @@ screen_map <- fwd_frames |>
          cy = cut(ty, CUTS, include.lowest = TRUE, labels = FALSE)) |>
   summarise(rel = median(rel), .by = c(session, tracker, cx, cy)) |>
   summarise(rel = median(rel), .by = c(tracker, cx, cy))
-ROW_NAMES <- c("top", "upper", "middle", "lower", "bottom")
-COL_NAMES <- c("left", "center-left", "center", "center-right", "right")
-cell_name <- function(cx, cy) {
-  if (cx == 3 && cy == 3) "center" else if (cx == 3) ROW_NAMES[cy] else if (cy == 3) COL_NAMES[cx]
-  else paste(ROW_NAMES[cy], COL_NAMES[cx])
-}
-# The cell where a tracker did worst or best, described for the text.
-extreme_cell <- function(tr, which) {
-  cells <- filter(screen_map, tracker == tr)
-  cell <- if (which == "worst") slice_max(cells, rel, n = 1) else slice_min(cells, rel, n = 1)
-  sprintf("the %s cell (%s×)", cell_name(cell$cx, cell$cy), f2(cell$rel))
-}
 ```
 
 
@@ -1676,13 +1603,11 @@ by_grid <- fwd_all |>
   filter(block == min(block), .by = session) |>
   filter(test_block > block) |>
   summarise(error = median(error), .by = c(session, tracker, grid))
-grid_summary <- by_grid |> summarise(error = median(error), .by = c(tracker, grid))
-grid_med <- function(tr, n) f2(value_of(grid_summary, error, tracker == tr, grid == n))
 
 # Time since calibration: the first block's 25-point calibration, scored on the test points of
 # its own block and each later one, so every lag has the same calibration and as many points.
 # Test points only: a block's own grid points are its calibration, so only test points can be
-# scored at every lag. (`lagged` keeps every block's calibration, for the recalibration below.)
+# scored at every lag.
 lagged <- fwd_all |> filter(grid == 25, point_type == "test")
 first_calibration <- lagged |> filter(block == min(block), .by = session)
 by_lag <- first_calibration |> summarise(error = median(error), .by = c(session, tracker, lag))
@@ -1691,20 +1616,7 @@ lag_minutes <- first_calibration |>
   summarise(minutes = median((elapsed - cal_end) / 60000), .by = lag) |>
   arrange(lag)
 lag_summary <- by_lag |> summarise(error = median(error), .by = c(tracker, lag))
-lag_med <- function(tr, l) f2(value_of(lag_summary, error, tracker == tr, lag == l))
 lag_min <- function(l) f1(value_of(lag_minutes, minutes, lag == l))
-
-# Recalibrating: the last block's test points, from the first block's calibration and from a fresh
-# one on the last block's own grid, paired within participant.
-recal <- lagged |>
-  mutate(first_block = min(block), last_block = max(test_block), .by = session) |>
-  filter(test_block == last_block, block == first_block | block == last_block) |>
-  mutate(calibration = if_else(block == first_block, "first", "fresh")) |>
-  summarise(error = median(error), .by = c(session, tracker, calibration)) |>
-  pivot_wider(names_from = calibration, values_from = error) |>
-  drop_na(first, fresh) |>
-  mutate(gain = first - fresh)
-recal_summary <- recal |> summarise(helped = sum(gain > 0), gain = mean(gain), .by = tracker)
 
 # Recalibrating every block, on the test points of each block: one 25-point calibration on the
 # first block, against a fresh 9-point calibration on each block's own grid.
@@ -1723,20 +1635,6 @@ recal_schemes <- bind_rows(
 # One median error per participant, tracker, scheme and block; and over all three blocks.
 by_scheme_block <- recal_schemes |>
   summarise(error = median(error), .by = c(session, tracker, scheme, block_number))
-scheme_summary <- by_scheme_block |>
-  summarise(error = median(error), .by = c(tracker, scheme, block_number))
-scheme_med <- function(tr, s, b) f2(value_of(scheme_summary, error, tracker == tr, scheme == s, block_number == b))
-# Paired over all three blocks' test points: how many participants the 9-point recalibration helped.
-scheme_paired <- recal_schemes |>
-  summarise(error = median(error), .by = c(session, tracker, scheme)) |>
-  pivot_wider(names_from = scheme, values_from = error) |>
-  drop_na() |>
-  summarise(n = n(), helped = sum(`9 points, every block` < `25 points, once`),
-            mean_gain = mean(`25 points, once` - `9 points, every block`), .by = tracker)
-scheme_pair <- function(tr, column) value_of(scheme_paired, {{ column }}, tracker == tr)
-recal_gain <- function(tr) f2(value_of(recal_summary, gain, tracker == tr))
-recal_better <- function(tr) value_of(recal_summary, helped, tracker == tr)
-n_recal <- n_distinct(recal$session)
 
 # For the text. Calibration size, paired within participant: 9 against 25 points.
 grid_paired <- by_grid |>
@@ -1907,7 +1805,6 @@ camera_lag <- machines |>
   left_join(select(participants, session, timing_verdict), by = "session")
 # Participants whose delay the plugin flagged as unreliable are left out of the latency analysis:
 # the correction is only as good as the delay it subtracts.
-n_lag_unreliable <- sum(camera_lag$timing_verdict != "OK", na.rm = TRUE)
 lat_sessions <- latencies |>
   left_join(camera_lag, by = "session") |>
   filter(timing_verdict == "OK") |>
@@ -1921,7 +1818,6 @@ lat_summary <- lat_sessions |>
             # the measurement accounts for all of it.
             r_raw_lag = cor(raw, lag_ms), slope_raw_lag = coef(lm(raw ~ lag_ms))[["lag_ms"]],
             .by = tracker)
-lag_quantile <- function(q) f0(quantile(camera_lag$lag_ms, q, na.rm = TRUE, names = FALSE))
 
 # A laboratory reference: each participant's median latency in GazeBase's random-saccade task
 # (Griffith et al., 2021), timed at the midpoint crossing like ours, from 1000 Hz EyeLink gaze (see
@@ -1929,11 +1825,6 @@ lag_quantile <- function(q) f0(quantile(camera_lag$lag_ms, q, na.rm = TRUE, name
 # much later the midpoint is than the onset most studies report.
 gazebase <- read_csv("reference/gazebase_ran_latency.csv", show_col_types = FALSE)
 gazebase_onset_gap <- median(gazebase$midpoint_ms - gazebase$onset_ms)
-# The two trackers' estimates of the same participant's latency, from the same frames.
-tracker_agreement <- lat_sessions |>
-  select(session, tracker, raw) |>
-  pivot_wider(names_from = tracker, values_from = raw) |>
-  summarise(r = cor(SaccadeJS, WebGazer, use = "complete"))
 lat <- function(tr, column) value_of(lat_summary, {{ column }}, tracker == tr)
 # The distribution of participants' median latency, for the text: median (IQR).
 median_iqr <- function(v) {
@@ -2050,7 +1941,6 @@ cov_tests <- conditions |>
   mutate(p_holm = p.adjust(p, "holm"))
 # The significant recording conditions, leaving the model's weight out.
 cov_sig <- cov_tests |> filter(p_holm < 0.05, covariate %in% names(COVARIATES)) |> arrange(p_holm)
-p_uncorrected <- function(cov, tr) p_fmt(value_of(cov_tests, p, covariate == cov, tracker == tr))
 
 # Within participants, frame by frame: what changes from moment to moment within a session,
 # against each frame's error, on the same frames and calibration as above (see R/measures.R for
@@ -2080,35 +1970,14 @@ frame_tests <- within_rho |>
   summarise(n = n(), median_rho = median(rho), q25 = quantile(rho, 0.25), q75 = quantile(rho, 0.75),
             p = wilcox.test(rho, exact = FALSE)$p.value, .by = c(covariate, tracker)) |>
   mutate(p_holm = p.adjust(p, "holm"), group = WITHIN_GROUPS[covariate])
-frame_sig <- frame_tests |> filter(p_holm < 0.05)
 frame_rho_of <- function(cov, tr) {
   d <- filter(frame_tests, covariate == cov, tracker == tr)
   sprintf("median ρ = %+.2f%s", d$median_rho, if (d$p_holm < 0.05) "" else ", n.s.")
 }
-frame_rho_both <- function(cov) sprintf("SaccadeJS %s; WebGazer %s", frame_rho_of(cov, "SaccadeJS"), frame_rho_of(cov, "WebGazer"))
-
-# Brightness: whether error rises at both ends (a U-shape the rank correlation would miss), and
-# the range of brightness the sample covered.
-brightness_checks <- conditions |>
-  select(session, brightness) |>
-  inner_join(accuracy, by = "session") |>
-  summarise(quadratic_p = summary(lm(log(error) ~ poly(brightness, 2)))$coefficients[3, 4],
-            distance_rho = cor(abs(brightness - median(brightness)), error, method = "spearman"),
-            .by = tracker)
-brightness_check <- function(tr, column) value_of(brightness_checks, {{ column }}, tracker == tr)
-brightness_quantile <- function(q) f0(quantile(conditions$brightness, q, names = FALSE))
-# Why sensor noise is measured from frame to frame: the experiment's per-frame estimate tracked
-# sharpness instead.
-immerkaer_sharpness_rho <- cor(conditions$immerkaer_noise, conditions$sharpness, method = "spearman")
-immerkaer_error_rho <- conditions |>
-  inner_join(accuracy, by = "session") |>
-  summarise(rho = cor(immerkaer_noise, error, method = "spearman"), .by = tracker)
-cov_tests_participants <- conditions |> semi_join(accuracy, by = "session") |> pull(session)
 rho_of <- function(cov, tr) {
   d <- cov_tests |> filter(covariate == cov, tracker == tr)
   sprintf("ρ = %+.2f%s", d$rho, if (d$p_holm < 0.05) "" else ", n.s.")
 }
-rho_both <- function(cov) sprintf("SaccadeJS %s; WebGazer %s", rho_of(cov, "SaccadeJS"), rho_of(cov, "WebGazer"))
 
 # Groups: glasses against none (contact lenses put nothing in front of the eye), built-in against
 # separate cameras, sex and Prolific's simplified ethnicity; missing answers and groups of fewer
@@ -2144,7 +2013,6 @@ group_tests <- expand_grid(f = FACTORS, tr = names(TRACKER_COLORS)) |>
                         p = cor.test(age, error, method = "spearman", exact = FALSE)$p.value,
                         .by = tracker)) |>
   mutate(p_holm = p.adjust(p, "holm"))
-group_sig <- group_tests |> filter(p_holm < 0.05)
 # The median error, and the number of participants, in one group of one factor.
 group_med <- function(tr, f, g) {
   groups |> filter(tracker == tr, .data[[f]] == g) |> summarise(error = median(error)) |> pull(error) |> f2()
@@ -2340,22 +2208,6 @@ runtime <- machines |>
          # rate is the one measured on the camera itself at the start of the session.
          live = pmin(live_fps, camera_fps_start),
          keeps_up = live >= 0.9 * camera_fps_start)
-path_summary <- runtime |>
-  summarise(n = n(),
-            # Per participant, before `live` becomes the group's median.
-            keep_up = 100 * mean(keeps_up),
-            live = median(live),
-            camera = median(camera_fps_start),
-            .by = path)
-path_value <- function(p, column) value_of(path_summary, {{ column }}, path == p)
-
-# The camera's frame rate, measured at the start, and the rate the experiment recorded frames at
-# during the task.
-camera_summary <- runtime |>
-  summarise(median = median(camera_fps_start, na.rm = TRUE),
-            fast = 100 * mean(camera_fps_start >= 25, na.rm = TRUE),
-            slow = 100 * mean(camera_fps_start < 20, na.rm = TRUE),
-            recorded = median(camera_fps))
 
 # The cost of encoding one frame, wherever SaccadeJS could run it: on the GPU, by the GPU's
 # maker; and on the CPU, as one encode on one worker, measured on every machine that deferred its
@@ -2371,23 +2223,6 @@ encode_summary <- bind_rows(
   encode_times |> summarise(median = median(ms), .by = place),
   encode_times |> filter(startsWith(as.character(place), "GPU")) |>
     summarise(place = "GPU, any", median = median(ms)))
-encode_median <- function(p) f0(value_of(encode_summary, median, place == p))
-
-# On the GPU, by its maker: how many machines, their median encode time, and how many could
-# encode inline.
-gpu_summary <- runtime |>
-  filter(live_backend == "webgpu") |>
-  summarise(n = n(), median = median(inline_ms), inline = sum(encoder == "inline"), .by = gpu)
-gpu_value <- function(g, column) value_of(gpu_summary, {{ column }}, gpu == g)
-n_webgpu <- sum(gpu_summary$n)
-
-
-# Among machines with WebGPU, how often the encode fit, by the camera's speed at the start.
-gpu_by_camera <- runtime |>
-  filter(live_backend == "webgpu", is.finite(camera_fps_start)) |>
-  mutate(camera = if_else(camera_fps_start >= 25, "fast", "slow")) |>
-  summarise(n = n(), inline = 100 * mean(encoder == "inline"), .by = camera)
-gpu_inline <- function(speed) f0(value_of(gpu_by_camera, inline, camera == speed))
 # Across all machines: how many kept up with their camera, and the median participant's live gaze
 # rate against their camera's.
 live_overall <- runtime |>

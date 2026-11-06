@@ -51,7 +51,7 @@ rect_part <- function(cx, cy, width, height, fill, color = NA, alpha = 1, linewi
             fill, color, alpha, linewidth)
 }
 
-# Move, scale, rotate or fade every part of a drawing. Rotation is about (cx, cy), in degrees.
+# Move, scale or rotate every part of a drawing. Rotation is about (cx, cy), in degrees.
 shift <- function(drawing, dx = 0, dy = 0) map(drawing, \(p) mutate(p, x = x + dx, y = y + dy))
 # Enlarging scales line widths too, so a drawing keeps its proportions at any size.
 enlarge <- function(drawing, factor) {
@@ -66,7 +66,6 @@ rotate <- function(drawing, degrees, cx = 0, cy = 0) {
       select(-x_new, -y_new)
   })
 }
-fade <- function(drawing, alpha) map(drawing, \(p) mutate(p, alpha = alpha * p$alpha))
 
 # ------------------------------------------------------------------ drawing parts with ggplot
 
