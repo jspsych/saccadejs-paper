@@ -211,7 +211,7 @@ We introduce the SaccadeJS dataset, a collection of `r fn(ds_n())` participants 
 | TabletGaze [@huang2017] | 51 | 816 videos | 16 videos | | ✓ | ✓ | | Open |
 | EVE [@park2020] | 54 | 12.3M^d^ | 228,000^d^ | | | ✓ | ✓ | Request |
 | WEyeDS [@evdokimov2024] | 54^e^ | n.r. | n.r. | ✓ | ✓ | ✓ | ✓ | Request |
-| **SaccadeJS** | **`r fn(ds_n())`** | **`r fn_short(ds_sum("n_face_found"))`^f^** | **`r fn(round(ds_sum("n_face_found") / ds_n()))`^f^** | **✓** | **✓** | **✓** | **✓** | **Open** |
+| **SaccadeJS** | **`r fn(ds_n())`** | **`r fn_short(ds_sum("n_face_found"))`^f^** | **`r fn(round(ds_sum("n_face_found") / ds_n()))`^f^** | **✓** | **✓** | **✓** | **✓** | **Request** |
 
 : Gaze prediction datasets that researchers can obtain and use for training webcam-based models, with features that are critical for the use case of behavioral research. People: unique participants. Per person: approximate samples per participant. Uncontrolled: recorded in everyday settings rather than a lab. One webcam: recorded with a single standard webcam. Head free: free head movement. Laptop distance: recorded at a laptop or desktop viewing distance. Some datasets reported in the literature are no longer available and are not included. +: a subset of the data meets this condition. n.r.: not reported. Access, as of October 2026: Open, a direct download; Form, an account or form that gives access without review; Request, the authors approve each request or send the data. ^a^The frames in which a face and both eyes were detected, from 1,471 participants, of 2.4M frames in total. ^b^94 sessions of 2–3 minutes, recorded with a Kinect and an HD camera. ^c^Includes 18 images of the same person and condition, from 18 different cameras. ^d^Frames from four synchronized cameras, three of them webcams. ^e^38 in the published description [@evdokimov2024]; 54 according to the dataset's page in October 2026. ^f^Frames in which a face was found, of `r fn_short(ds_sum("n_frames"))` in total. {#tbl-datasets}
 
@@ -417,7 +417,9 @@ We informed participants three separate times that the data we recorded would be
 
 ## Data Access
 
-The dataset is published on Zenodo at [LINK]. The training and held-out collections are packaged separately, each in two forms. The raw videos are the trial `.webm` files as recorded (50 GB for the training set, 15 GB for the held-out set). The eye crops are one NumPy `.npz` file per participant (32 GB and 8 GB). It holds the 144 × 36 contrast-equalized image of both eyes and the 478 MediaPipe landmarks for every frame in which a face was found, with the trial's target position, the frame's timestamp, and the crop's size, sharpness, brightness, contrast, and eye aspect ratios. Each form is split by participant into self-contained zip archives of about 10 GB, and an index file lists which archive holds each participant. It is openly available for non-commercial use under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International license (CC BY-NC-SA 4.0).
+The dataset is published on Zenodo at <https://doi.org/10.5281/zenodo.23817713>. The raw videos are `.webm` files, as recorded at data collection (50 GB for the training set, 15 GB for the held-out set). The eye crops are one NumPy `.npz` file per participant (32 GB and 8 GB). It holds the 144 × 36 contrast-equalized image of both eyes and the 478 MediaPipe landmarks for every frame in which a face was found, with the trial's target position, the frame's timestamp, and the crop's size, sharpness, brightness, contrast, and eye aspect ratios. Files are split by participant into self-contained zip archives of about 10 GB each, and an index file lists which archive holds each participant. 
+
+Because the data contain participants' faces, the files are available through Zenodo to all researchers who accept a data use agreement. The agreement specifies that the data can be used for non-commercial research and prohibits attempts to reidentify participants. The files are licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International license (CC BY-NC-SA 4.0).
 
 # The SaccadeJS Gaze Model {#sec-model}
 
@@ -1233,7 +1235,7 @@ Our goal with the study was to run the WebGazer and SaccadeJS algorithms on iden
 
 In addition to the image features needed for WebGazer and SaccadeJS, we also collected a variety of metrics to help us identify potential predictors of model performance. From the facial landmark model, we recorded the 3D coordinates of 9 locations (tip of the nose, midline of the upper forehead, lowest point on the chin, the widest points on the left and right side of the face, and the inner and outer corners of both eyes), head yaw, pitch, and roll, and the aspect ratio of the box surrounding the open part of the eye (used, in part, for blink detection). For each image, we also recorded sharpness, brightness, and sensor noise. Finally, we measured several features of the participant's machine. We recorded their web browser type and version number, operating system, whether the browser claims to be a mobile browser, the refresh rate of the display, the screen size in pixels, the WebGL version, CPU core count, device memory, whether WebGPU was available and if so what GPU adapter was used, camera resolution, and measured frame rate.
 
-Data are available at [Zenodo].
+All data for this study are available on Zenodo at <https://doi.org/10.5281/zenodo.23213276>.
 
 ## Results
 
