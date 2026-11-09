@@ -23,13 +23,20 @@ affiliations:
   - id: "1"
     name: Vassar College
     department: Cognitive Science Department
-format: preprint-typst
+    city: Poughkeepsie
+    region: NY
+    country: USA
+shorttitle: "SaccadeJS"
+# preprint-typst reads authornote; apaquarto-typst reads author-note. Keep the two in step.
+author-note:
+  disclosures:
+    gratitude: We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project. We used LLMs to assist in the preparation of the manuscript; LLMs provided implementation assistance for data analyses, suggested edits for text, which we often used as suggested, helped identify inconsistencies between how we described the software in prose and the actual code, and suggested additional analysis directions.
 authornote: |
   We thank Andy Zhu, Olir Eswaramoorthy, James Mannix, and Shunji Wan for their contributions to the early stages of this project. We used LLMs to assist in the preparation of the manuscript; LLMs provided implementation assistance for data analyses, suggested edits for text, which we often used as suggested, helped identify inconsistencies between how we described the software in prose and the actual code, and suggested additional analysis directions.
 bibliography: references.bib
 bibliographystyle: apa
 abstract: |
-  Webcam eye tracking allows researchers to study eye movements in large, geographically diverse online samples, but its accuracy has limited it to coarse comparisons, such as which half or quadrant of the screen a participant is looking at. We introduce SaccadeJS, an open-source webcam eye tracker that runs entirely in the participant's browser. SaccadeJS uses a neural network to transform images of the eyes to features, which a ridge regression maps to screen positions. The network can be rapidly calibrated by computing new regression weights on a sample of fixations at known locations. To train the model, we collected a new dataset of 2,003 participants who fixated targets on their own laptop and desktop computers. In a validation study with 200 new online participants, the median participant's error was about 4% of the screen diagonal. That accuracy is enough to distinguish many more, and smaller, areas of interest than halves and quadrants. We also developed a timing calibration routine to measure each participant's camera lag. After correction, saccade latencies matched distributions from laboratory experiments. We report how different calibration strategies and image characteristics affect accuracy. SaccadeJS could be run in real time on about one third of the participants in the validation study; for others, the library processes frames in the background while the experiment runs. SaccadeJS can be used as standalone software for webcam eye tracking or in conjunction with jsPsych through a set of provided plugins for calibration, validation, and recording.
+  Webcam eye tracking allows researchers to study eye movements in large, geographically diverse online samples, but its accuracy has limited it to coarse comparisons, such as which quadrant of the screen a participant is looking at. We introduce SaccadeJS, an open-source webcam eye tracker that runs in the participant's browser. SaccadeJS uses a neural network to transform images of the eyes to features, which a regression maps to screen positions. The network can be rapidly calibrated by computing regression weights on fixations at known locations. To train the model, we collected a dataset of 2,003 participants who fixated targets on their own computers. In a validation study with 200 new participants, the median participant's error was about 4% of the screen diagonal. That accuracy is enough to distinguish much smaller areas of interest than halves and quadrants. We also developed a timing calibration to measure each participant's camera lag. After correction, saccade latencies matched distributions from laboratory experiments. SaccadeJS could be run in real time on about one third of the participants in the validation study; for others, the library processes frames in the background while the experiment runs. SaccadeJS can be used as standalone software or in conjunction with jsPsych through a set of provided plugins for calibration, validation, and recording.
 ---
 
 ```{r}
@@ -209,10 +216,11 @@ The SaccadeJS dataset is a collection of `r fn(ds_n())` participants looking at 
 | **SaccadeJS** | **`r fn(ds_n())`** | **`r fn_short(ds_sum("n_face_found"))`^f^** | **`r fn(round(ds_sum("n_face_found") / ds_n()))`^f^** | **✓** | **✓** | **✓** | **✓** | **Request** |
 
 ::: {.table-notes}
+People: unique participants. Per person: approximate samples per participant. Uncontrolled: recorded in everyday settings rather than a lab. One webcam: recorded with a single standard webcam. Head free: free head movement. Laptop distance: recorded at a laptop or desktop viewing distance. +: a subset of the data meets this condition. n.r.: not reported. Access, as of October 2026: Open, a direct download; Request, access through an account, a form, or the authors' approval. Some datasets reported in the literature are no longer available and are not included.
 ^a^The frames in which a face and both eyes were detected, from 1,471 participants, of 2.4M frames in total. ^b^94 sessions of 2–3 minutes, recorded with a Kinect and an HD camera. ^c^Includes 18 images of the same person and condition, from 18 different cameras. ^d^Frames from four synchronized cameras, three of them webcams. ^e^38 in the published description [@evdokimov2024]; 54 according to the dataset's page in October 2026. ^f^Frames in which a face was found, of `r fn_short(ds_sum("n_frames"))` in total.
 :::
 
-Gaze prediction datasets that researchers can obtain and use for training webcam-based models, with features that are critical for the use case of behavioral research. People: unique participants. Per person: approximate samples per participant. Uncontrolled: recorded in everyday settings rather than a lab. One webcam: recorded with a single standard webcam. Head free: free head movement. Laptop distance: recorded at a laptop or desktop viewing distance. Some datasets reported in the literature are no longer available and are not included. +: a subset of the data meets this condition. n.r.: not reported. Access, as of October 2026: Open, a direct download; Request, access through an account, a form, or the authors' approval.
+Gaze prediction datasets that researchers can obtain and use for training webcam-based models, with features that are critical for the use case of behavioral research.
 
 :::
 

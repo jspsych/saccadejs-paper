@@ -12,6 +12,8 @@ execute:
   warning: false
   message: false
 
+# Two renders of the same paper: the preprint (paper.pdf) and an APA 7 manuscript for journal
+# submission (paper-apa.pdf).
 format:
   preprint-typst:
     papersize: us-letter
@@ -25,3 +27,22 @@ format:
       text: |
         #show table: set text(size: 9pt, hyphenate: false)
         #show table: set par(justify: false)
+  apaquarto-typst:
+    output-file: paper-apa.pdf
+    # man: the APA manuscript layout (title page, double spacing, running head). Figures and
+    # tables stay in the text; set floatsintext: false to move them to the end after acceptance.
+    documentmode: man
+    floatsintext: true
+    # Line numbers in the margin, for reviewers to cite.
+    numbered-lines: true
+    papersize: us-letter
+    # Single-spaced tables, which APA allows, so Table 1 fits on a page under its title.
+    table-spacing: single
+    # Not macOS's "Times", apaquarto's first choice on a Mac: its superscripts render as specks,
+    # which loses the table-note markers. The other two stand in on Linux.
+    mainfont: "Times New Roman, Liberation Serif, Nimbus Roman"
+    include-in-header:
+      text: |
+        #show table: set text(size: 9pt, hyphenate: false)
+        #show table: set par(justify: false)
+        #show table: set par.line(numbering: none)

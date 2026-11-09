@@ -14,3 +14,6 @@ notes/
 
 # stray output from R graphics devices
 Rplots.pdf
+
+# local todo list tracking
+.claude/todos.json

@@ -1,8 +1,8 @@
 # saccadejs-paper
 
-**[Download the latest PDF](https://github.com/jspsych/saccadejs-paper/releases/download/latest/paper.pdf)**
+**[Download the latest PDF](https://github.com/jspsych/saccadejs-paper/releases/download/latest/paper.pdf)** · [APA 7 manuscript version](https://github.com/jspsych/saccadejs-paper/releases/download/latest/paper-apa.pdf)
 
-The paper source is `paper.qmd`. Every push to `main` renders it to PDF with Quarto + Typst and attaches the result to the [`latest` release](https://github.com/jspsych/saccadejs-paper/releases/tag/latest).
+The paper source is `paper.qmd`. Every push to `main` renders it to PDF with Quarto + Typst, in two formats, and attaches both to the [`latest` release](https://github.com/jspsych/saccadejs-paper/releases/tag/latest).
 
 ## Rendering locally
 
@@ -10,7 +10,9 @@ The paper source is `paper.qmd`. Every push to `main` renders it to PDF with Qua
 quarto render
 ```
 
-The PDF is written to `_output/paper.pdf`.
+This renders both formats in `_quarto.yml`: the preprint (`preprint-typst`, from the [mvuorre/quarto-preprint](https://github.com/mvuorre/quarto-preprint) extension) to `_output/paper.pdf`, and an APA 7 manuscript for journal submission (`apaquarto-typst`, from [wjschne/apaquarto](https://github.com/wjschne/apaquarto)) to `_output/paper-apa.pdf`. To render just one, use `quarto render --to preprint-typst` or `quarto render --to apaquarto-typst`.
+
+The two formats read the author note from different keys, `authornote` and `author-note`, so keep them in step.
 
 ## TODO list
 - [ ] Section 1: Intro

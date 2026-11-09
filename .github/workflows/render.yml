@@ -36,6 +36,11 @@ jobs:
             any::patchwork
             any::forcats
             any::magick
+            any::svglite
+
+      # Times New Roman's metric twin, for the APA render (apaquarto-typst).
+      - name: Install fonts
+        run: sudo apt-get install -y fonts-liberation
 
       # The validation dataset (Zenodo record 23213276, ~400 MB). The key carries the archive's
       # MD5, so a new upload (with a new MD5 in R/data.R) misses the cache and downloads again.
@@ -71,7 +76,9 @@ jobs:
           key: knitr-${{ hashFiles('paper.qmd', 'R/**') }}
           restore-keys: knitr-
 
-      - name: Render PDF
+      # Renders both formats in _quarto.yml: the preprint (paper.pdf) and the APA manuscript
+      # (paper-apa.pdf).
+      - name: Render PDFs
         env:
           # Needed only while the Zenodo record is an unpublished draft.
           ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
@@ -83,7 +90,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --cleanup-tag --yes || true
-          gh release create latest _output/paper.pdf \
+          gh release create latest _output/paper.pdf _output/paper-apa.pdf \
             --title "Latest render" \
             --notes "Rendered from ${GITHUB_SHA::7}" \
             --target "$GITHUB_SHA" \
