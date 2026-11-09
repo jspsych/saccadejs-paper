@@ -74,12 +74,13 @@ download_zenodo_archive <- function(record, file, md5, dest, token_var, label) {
 
 # Finding the model evaluation dataset: the deployed model's per-frame embeddings of the
 # held-out participants (eyedata24), built by analysis/build_paper_eval_dataset.py in
-# jspsych/eye-tracking.
+# jspsych/saccadejs-model.
 #
 # eval_data_dir() returns the folder holding participants.csv, trials.csv and participants/,
 # checking in order:
 #   1. SACCADEJS_EVAL_DATA, if set;
-#   2. ../eye-tracking/data/saccadejs-eval, where the eye-tracking repo keeps its copy;
+#   2. ../saccadejs-model/data/saccadejs-eval, where a clone of that repo beside this one keeps its
+#      copy (or ../eye-tracking/..., the repo's earlier name);
 #   3. data/saccadejs-eval in this repo, downloading it from Zenodo first if it is missing.
 #
 # It is a second file in the validation dataset's Zenodo record, so the download uses the same
@@ -95,11 +96,11 @@ eval_data_dir <- function() {
 }
 
 # Finding the dataset summary: who is in the SaccadeJS dataset and how they got there, without
-# identifiers, built by analysis/build_dataset_summary.py in jspsych/eye-tracking. It holds
+# identifiers, built by analysis/build_dataset_summary.py in jspsych/saccadejs-model. It holds
 # participants.csv (one row per released participant, both collections), consent.csv (counts
 # from a saved session to a released participant) and demographics.csv (counts of the released
 # participants' Prolific demographics). Found as for the evaluation dataset, with
-# SACCADEJS_SUMMARY_DATA, then ../eye-tracking/data/saccadejs-dataset-summary, then
+# SACCADEJS_SUMMARY_DATA, then ../saccadejs-model/data/saccadejs-dataset-summary, then
 # data/saccadejs-dataset-summary, downloaded from the same Zenodo record.
 
 SUMMARY_ZENODO_FILE <- "saccadejs-dataset-summary.tar"
@@ -111,8 +112,8 @@ summary_data_dir <- function() {
                        SUMMARY_ZENODO_MD5, "the dataset summary (about 450 KB)")
 }
 
-# A dataset built in jspsych/eye-tracking: the folder named by `env_var`, if set; else the
-# eye-tracking repo's copy beside this one; else this repo's data/ folder, downloaded from the
+# A dataset built in jspsych/saccadejs-model: the folder named by `env_var`, if set; else the copy
+# in a clone of that repo beside this one, under its name or its earlier one, eye-tracking; else this repo's data/ folder, downloaded from the
 # Zenodo record first if it is missing. Each has a participants.csv at its top.
 eye_tracking_dataset <- function(name, env_var, zenodo_file, md5, label) {
   is_dataset <- function(dir) file.exists(file.path(dir, "participants.csv"))
@@ -123,8 +124,10 @@ eye_tracking_dataset <- function(name, env_var, zenodo_file, md5, label) {
     return(env)
   }
 
-  sibling <- file.path("..", "eye-tracking", "data", name)
-  if (is_dataset(sibling)) return(sibling)
+  for (repo in c("saccadejs-model", "eye-tracking")) {
+    sibling <- file.path("..", repo, "data", name)
+    if (is_dataset(sibling)) return(sibling)
+  }
 
   local <- file.path("data", name)
   if (!is_dataset(local)) {

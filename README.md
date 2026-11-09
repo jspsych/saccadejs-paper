@@ -2,43 +2,42 @@
 
 **[Download the latest PDF](https://github.com/jspsych/saccadejs-paper/releases/download/latest/paper.pdf)** · [APA 7 manuscript version](https://github.com/jspsych/saccadejs-paper/releases/download/latest/paper-apa.pdf)
 
-The paper source is `paper.qmd`. Every push to `main` renders it to PDF with Quarto + Typst, in two formats, and attaches both to the [`latest` release](https://github.com/jspsych/saccadejs-paper/releases/tag/latest).
+The source of "SaccadeJS: Webcam eye tracking for behavioral experiments in a web browser". Rendering `paper.qmd` reproduces every number, table and figure in the paper from the published data. Every push to `main` renders it to PDF with Quarto + Typst, in two formats, and attaches both to the [`latest` release](https://github.com/jspsych/saccadejs-paper/releases/tag/latest).
 
-## Rendering locally
+Related repositories:
+
+- [jspsych/saccadejs](https://github.com/jspsych/saccadejs): the SaccadeJS library and its jsPsych plugins ([documentation](https://saccade.jspsych.org)).
+- [jspsych/saccadejs-model](https://github.com/jspsych/saccadejs-model): the code that trained the model, and the scripts that build the evaluation dataset and the dataset summary used here.
+- [jspsych/eyetracking-cookoff-exp](https://github.com/jspsych/eyetracking-cookoff-exp): the validation study's experiment, and the script that builds its dataset. The validation study's analysis is here, in `R/validation.R`.
+
+## Reproducing the paper
+
+You need [Quarto](https://quarto.org) 1.9 or later, R, and these R packages: rmarkdown, knitr, readr, jsonlite, ggplot2, dplyr, tidyr, purrr, tibble, scales, patchwork, forcats, magick and svglite. Both Quarto extensions are included in `_extensions/`. The data download from Zenodo on the first render (see [Data](#data)).
 
 ```sh
-quarto render
+quarto render --to preprint-typst
+quarto render --to apaquarto-typst
 ```
 
-This renders both formats in `_quarto.yml`: the preprint (`preprint-typst`, from the [mvuorre/quarto-preprint](https://github.com/mvuorre/quarto-preprint) extension) to `_output/paper.pdf`, and an APA 7 manuscript for journal submission (`apaquarto-typst`, from [wjschne/apaquarto](https://github.com/wjschne/apaquarto)) to `_output/paper-apa.pdf`. To render just one, use `quarto render --to preprint-typst` or `quarto render --to apaquarto-typst`.
+Render the two formats separately, as above. A plain `quarto render` tries both at once, and stops with a missing `paper.typ`, which both formats use as their intermediate file.
+
+The two formats in `_quarto.yml` are the preprint (`preprint-typst`, from the [mvuorre/quarto-preprint](https://github.com/mvuorre/quarto-preprint) extension) to `_output/paper.pdf`, and an APA 7 manuscript for journal submission (`apaquarto-typst`, from [wjschne/apaquarto](https://github.com/wjschne/apaquarto)) to `_output/paper-apa.pdf`.
 
 The two formats read the author note from different keys, `authornote` and `author-note`, so keep them in step.
 
-## TODO list
-- [ ] Section 1: Intro
-  - [x] Trim
-  - [ ] Briefly describe caveats in saccadeJs at the end
-  - [x] Do the contributions (main point of paper) come too late + is too brief? Should we have a larger chunk before section 1.1 describing the dataset + the model?
-- [ ] Section 2: The SaccadeJS Dataset
-  - [x] ~~Recreate this figure in R and link it ![144 calibration points](<figures/calibration-points.png>)~~
-  - [ ] Get per-frame metadata. How should we analyze these?
-- [ ] Section 3: 
-  - [ ] Include any experiments we run to improve the model, like size of the embedding vector
-- [ ] Section 6: Figure of error by FPS?
+The first render takes several minutes, mostly to replay every validation session through both trackers. knitr caches those replays in `paper_cache/`, so later renders skip them unless their code or data change.
 
-## Questions & Suggestions
-- Maybe make explicit in second paragraph of section 1.1 how exactly eye-tracking is easier to measure than language/rt in the examples given?
-~~- Is EyeSeeVC different from the saccadeJS evaluation dataset (N=1,950)? Should we briefly introduce and explain what it is before it is referenced in the text?~~
-~~- For the SaccadeJS Dataset Prolific task, in the attention check trials, is there a maximum time the participant can wait in responding to the red color change before which it counts as a failed trial?~~
-- curious about whether there is more error in the points used for calibration (the 25 points) than the randomly chosen ones, and whether there is a pragmatic argument for calibrating exactly on the centers of AOIs
-- Figure 9C: why choose the block after calibration specifically?
-~~- The tests with how accuracy changes as no. of calibration points increases cap at go from 9->13->25 and shows steady improvement. Should we run tests with more points or is there a good reason to stop here~~
-~~- For the tests where calibration was redone every block was it the same set of calibration dots each time?~~
+## Layout
 
+- `paper.qmd`: the paper, with the analysis code for every figure and inline number.
+- `R/`: functions `paper.qmd` sources. `data.R` finds or downloads the datasets; `validation.R` replays the validation sessions; `model_eval.R` replays the held-out evaluation of the model; `measures.R` defines the recording conditions correlated with error; `icons.R` draws the figures' icons.
+- `reference/`: small stored inputs from outside these datasets. These are GazeBase saccade latencies (`gazebase_ran_latency`) and the pixel-regression baseline (`pixel_ridge`), each with the script that made it, and the timing rig's measurements (`time_sync_rig.csv`), recorded with the rig panel in jspsych/saccadejs-model (`web/rig`). The scripts don't run during a render.
+- `scripts/model_figure_images.py`: makes the three images in the model figure (`figures/model/`) from a webcam photo.
+- `filters/`: a Lua filter that sets table notes in smaller type.
 
 ## Data
 
-The results come from the validation study's dataset, published on Zenodo as record [23213276](https://doi.org/10.5281/zenodo.23213276) (`saccadejs-validation.tar`, about 400 MB). It is built by `analysis/build_dataset.py` in [jspsych/eyetracking-cookoff-exp](https://github.com/jspsych/eyetracking-cookoff-exp).
+The validation study's results come from its dataset, published on Zenodo as record [23213276](https://doi.org/10.5281/zenodo.23213276) (`saccadejs-validation.tar`, about 400 MB). It is built by `analysis/build_dataset.py` in [jspsych/eyetracking-cookoff-exp](https://github.com/jspsych/eyetracking-cookoff-exp).
 
 `R/data.R` finds the dataset when `paper.qmd` renders, checking in order:
 
@@ -50,17 +49,17 @@ While the Zenodo record is an unpublished draft, downloading needs the share lin
 
 ### Model evaluation dataset
 
-Section 4 uses a second dataset: the deployed model's per-frame embeddings of the held-out participants, `saccadejs-eval.tar` (about 255 MB). It is built by `analysis/build_paper_eval_dataset.py` in [jspsych/eye-tracking](https://github.com/jspsych/eye-tracking). `R/data.R` finds it in:
+The section on performance on the development set uses a second dataset: the deployed model's per-frame embeddings of the held-out participants, `saccadejs-eval.tar` (about 255 MB). It is built by `analysis/build_paper_eval_dataset.py` in [jspsych/saccadejs-model](https://github.com/jspsych/saccadejs-model). `R/data.R` finds it in:
 
 1. the folder in the `SACCADEJS_EVAL_DATA` environment variable, if set;
-2. `../eye-tracking/data/saccadejs-eval`, the copy the eye-tracking repo keeps;
+2. `../saccadejs-model/data/saccadejs-eval`, the copy a clone of that repo beside this one keeps (or `../eye-tracking/...`, the repo's earlier name);
 3. `data/saccadejs-eval` in this repo, which it downloads from Zenodo (and checks against `EVAL_ZENODO_MD5`) if it isn't there.
 
 It is a second file in the same Zenodo record as the validation dataset, so the download uses the same `ZENODO_TOKEN` while the record is a draft.
 
 ### Dataset summary
 
-Sections 1 and 2 describe the SaccadeJS dataset from `saccadejs-dataset-summary.tar` (about 450 KB): one row per released participant, with their video format and median recording conditions (`participants.csv`) counts from each recorded session to the released dataset (`consent.csv`), and counts of the released participants' Prolific demographics (`demographics.csv`), with no identifiers. It is built by `analysis/build_dataset_summary.py` in jspsych/eye-tracking from the raw session data, and found like the evaluation dataset: `SACCADEJS_SUMMARY_DATA`, then `../eye-tracking/data/saccadejs-dataset-summary`, then `data/saccadejs-dataset-summary`, downloaded from the same Zenodo record and checked against `SUMMARY_ZENODO_MD5`.
+The introduction and the section on the SaccadeJS dataset describe it from `saccadejs-dataset-summary.tar` (about 450 KB): one row per released participant, with their video format and median recording conditions (`participants.csv`), counts from each recorded session to the released dataset (`consent.csv`), and counts of the released participants' Prolific demographics (`demographics.csv`), with no identifiers. It is built by `analysis/build_dataset_summary.py` in jspsych/saccadejs-model from the raw session data, and found like the evaluation dataset: `SACCADEJS_SUMMARY_DATA`, then `../saccadejs-model/data/saccadejs-dataset-summary`, then `data/saccadejs-dataset-summary`, downloaded from the same Zenodo record and checked against `SUMMARY_ZENODO_MD5`.
 
 ### The GitHub Action
 

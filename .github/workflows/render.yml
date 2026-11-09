@@ -76,13 +76,16 @@ jobs:
           key: knitr-${{ hashFiles('paper.qmd', 'R/**') }}
           restore-keys: knitr-
 
-      # Renders both formats in _quarto.yml: the preprint (paper.pdf) and the APA manuscript
-      # (paper-apa.pdf).
+      # Renders both formats in _quarto.yml, the preprint (paper.pdf) and the APA manuscript
+      # (paper-apa.pdf), one at a time. Both go through the same intermediate paper.typ, and a single
+      # `quarto render` of both stopped with "readfile paper.typ: No such file or directory".
       - name: Render PDFs
         env:
           # Needed only while the Zenodo record is an unpublished draft.
           ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
-        run: quarto render
+        run: |
+          quarto render --to preprint-typst
+          quarto render --to apaquarto-typst
 
       - name: Publish to "latest" release
         if: github.ref == 'refs/heads/main'

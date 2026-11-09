@@ -5,9 +5,9 @@ crop of both eyes from landmarks 226 and 446 (left and right) and 27/257 and 23/
 bottom) with 0.01 padding, grayscale, a resize to 144 x 36 and CLAHE (clip 2.0, 8 x 8 tiles).
 The frame and mesh are cut to a square around the face so it reads at figure size.
 
-Needs mediapipe and opencv; the eye-tracking repo's environment has both:
+Needs mediapipe and opencv; the saccadejs-model repo's environment has both:
 
-    ../eye-tracking/.venv/bin/python scripts/model_figure_images.py PHOTO MODEL_TASK [OUT_DIR]
+    ../saccadejs-model/.venv/bin/python scripts/model_figure_images.py PHOTO MODEL_TASK [OUT_DIR]
 
 MODEL_TASK is face_landmarker.task, the model SaccadeJS loads in the browser:
 https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task
@@ -44,7 +44,7 @@ def landmarks_of(rgb, model_path):
 
 
 def crop_box(landmarks, width, height):
-    """The both-eyes box, as in getBothEyesAsSingleImage (eye-tracking/et_util/process_functions.py)."""
+    """The both-eyes box, as in getBothEyesAsSingleImage (saccadejs-model/et_util/process_functions.py)."""
     left = int((landmarks[226][0] - PADDING) * width)
     right = int((landmarks[446][0] + PADDING) * width)
     top = min(int((landmarks[27][1] - PADDING) * height), int((landmarks[257][1] - PADDING) * height))
